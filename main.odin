@@ -116,7 +116,7 @@ main :: proc() {
 	}
 	create_swapchain(&renderer)
 	create_image_views(&renderer)
-	create_graphics_pipeline(&renderer, "shader_builtin.vert.spv", "shader_builtin.frag.spv")
+	create_graphics_pipeline(&renderer, "bin/assets/shaders/shader_builtin.vert.spv", "bin/assets/shaders/shader_builtin.frag.spv")
 	for (!glfw.WindowShouldClose(renderer.window)) {
 		glfw.PollEvents()
 		glfw.SwapBuffers(renderer.window)

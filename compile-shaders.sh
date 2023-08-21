@@ -1,14 +1,14 @@
 #!/bin/bash
 
-cp -r assets build
+cp -r assets bin
 
 for shader in assets/shaders/* ; do
-	echo "$shader -> build/$shader.spv"
+	echo "$shader -> bin/$shader.spv"
 	extension="${shader##*.}"
 	if [ $extension = "vert" ]; then
-		$VULKAN_SDK/bin/glslc -fshader-stage=vert $shader -o build/$shader.spv
+		$VULKAN_SDK/bin/glslc -fshader-stage=vert $shader -o bin/$shader.spv
 	elif [ $extension = "frag" ]; then
-		 $VULKAN_SDK/bin/glslc -fshader-stage=frag $shader -o build/$shader.spv
+		 $VULKAN_SDK/bin/glslc -fshader-stage=frag $shader -o bin/$shader.spv
 	else
 		echo "Unsupported file $shader"
 	fi

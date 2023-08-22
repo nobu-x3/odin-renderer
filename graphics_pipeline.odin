@@ -5,14 +5,8 @@ import "core:fmt"
 import "core:os"
 import vk "vendor:vulkan"
 
-Pipeline :: struct {
-	handle:      vk.Pipeline,
-	render_pass: vk.RenderPass,
-	layout:      vk.PipelineLayout,
-}
-
 graphics_pipeline_create :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	vs_name: string,
 	fs_name: string,
 ) {
@@ -40,8 +34,8 @@ graphics_pipeline_create :: proc(
 		delete(vs_code)
 		delete(fs_code)
 	}
-	vs_shader := shader_module_create(renderer, vs_code)
-	fs_shader := shader_module_create(renderer, fs_code)
+	vs_shader := shader_module_create(ctx, vs_code)
+	fs_shader := shader_module_create(ctx, fs_code)
 	defer 
 	{
 		vk.DestroyShaderModule(device, vs_shader, nil)
@@ -141,7 +135,7 @@ graphics_pipeline_create :: proc(
 		fmt.eprintf("Error: Failed to create pipeline layout!\n")
 		os.exit(1)
 	}
-	render_pass_create(renderer)
+	render_pass_create(ctx)
 	pipeline_info: vk.GraphicsPipelineCreateInfo
 	pipeline_info.sType = .GRAPHICS_PIPELINE_CREATE_INFO
 	pipeline_info.stageCount = 2

@@ -6,7 +6,7 @@ import "core:os"
 import vk "vendor:vulkan"
 
 shader_module_create :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	code: []u8,
 ) -> vk.ShaderModule {
 	create_info: vk.ShaderModuleCreateInfo

@@ -6,30 +6,11 @@ import "core:os"
 import vk "vendor:vulkan"
 import "vendor:glfw"
 
-
-Swapchain :: struct {
-	handle:       vk.SwapchainKHR,
-	images:       []vk.Image,
-	image_views:  []vk.ImageView,
-	format:       vk.SurfaceFormatKHR,
-	extent:       vk.Extent2D,
-	present_mode: vk.PresentModeKHR,
-	image_count:  u32,
-	support:      SwapchainDescription,
-	framebuffers: []vk.Framebuffer,
-}
-
-SwapchainDescription :: struct {
-	capabilities:  vk.SurfaceCapabilitiesKHR,
-	formats:       []vk.SurfaceFormatKHR,
-	present_modes: []vk.PresentModeKHR,
-}
-
-swapchain_create :: proc(using renderer: ^Renderer) {
-	using renderer.swapchain.support
-	swapchain.format = choose_surface_format(renderer)
-	swapchain.present_mode = choose_present_mode(renderer)
-	swapchain.extent = choose_swap_extent(renderer)
+swapchain_create :: proc(using ctx: ^Context) {
+	using ctx.swapchain.support
+	swapchain.format = choose_surface_format(ctx)
+	swapchain.present_mode = choose_present_mode(ctx)
+	swapchain.extent = choose_swap_extent(ctx)
 	swapchain.image_count = capabilities.minImageCount + 1
 	if capabilities.maxImageCount > 0 &&
 	   swapchain.image_count > capabilities.maxImageCount {
@@ -86,20 +67,20 @@ swapchain_create :: proc(using renderer: ^Renderer) {
 	)
 }
 
-swapchain_recreate :: proc(using renderer: ^Renderer) {
+swapchain_recreate :: proc(using ctx: ^Context) {
 	width, height := glfw.GetFramebufferSize(window)
 	for width == 0 && height == 0 {
 		width, height = glfw.GetFramebufferSize(window)
 		glfw.WaitEvents()
 	}
 	vk.DeviceWaitIdle(device)
-	swapchain_cleanup(renderer)
-	swapchain_create(renderer)
-	create_image_views(renderer)
-	create_framebuffers(renderer)
+	swapchain_cleanup(ctx)
+	swapchain_create(ctx)
+	create_image_views(ctx)
+	create_framebuffers(ctx)
 }
 
-swapchain_cleanup :: proc(using renderer: ^Renderer) {
+swapchain_cleanup :: proc(using ctx: ^Context) {
 	for f in swapchain.framebuffers {
 		vk.DestroyFramebuffer(device, f, nil)
 	}
@@ -109,8 +90,8 @@ swapchain_cleanup :: proc(using renderer: ^Renderer) {
 	vk.DestroySwapchainKHR(device, swapchain.handle, nil)
 }
 
-create_image_views :: proc(using renderer: ^Renderer) {
-	using renderer.swapchain
+create_image_views :: proc(using ctx: ^Context) {
+	using ctx.swapchain
 	image_views = make([]vk.ImageView, len(images))
 	for _, i in images {
 		create_info: vk.ImageViewCreateInfo
@@ -139,7 +120,7 @@ create_image_views :: proc(using renderer: ^Renderer) {
 	}
 }
 
-create_framebuffers :: proc(using renderer: ^Renderer) {
+create_framebuffers :: proc(using ctx: ^Context) {
 	swapchain.framebuffers = make([]vk.Framebuffer, len(swapchain.image_views))
 	for v, i in swapchain.image_views {
 		attachments := [?]vk.ImageView{v}
@@ -167,18 +148,18 @@ framebuffer_size_callback :: proc "c" (
 	window: glfw.WindowHandle,
 	width, height: i32,
 ) {
-	using renderer := cast(^Renderer)glfw.GetWindowUserPointer(window)
+	using ctx := cast(^Context)glfw.GetWindowUserPointer(window)
 	framebuffer_resized = true
 }
 
-choose_present_mode :: proc(using renderer: ^Renderer) -> vk.PresentModeKHR {
+choose_present_mode :: proc(using ctx: ^Context) -> vk.PresentModeKHR {
 	for v in swapchain.support.present_modes {
 		if v == .MAILBOX do return v
 	}
 	return .FIFO
 }
 
-choose_swap_extent :: proc(using renderer: ^Renderer) -> vk.Extent2D {
+choose_swap_extent :: proc(using ctx: ^Context) -> vk.Extent2D {
 	if (swapchain.support.capabilities.currentExtent.width != max(u32)) {
 		return swapchain.support.capabilities.currentExtent
 	} else {

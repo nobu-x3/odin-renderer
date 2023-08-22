@@ -9,26 +9,7 @@ import vk "vendor:vulkan"
 
 MAX_FRAMES_IN_FLIGHT :: 2
 
-Renderer :: struct {
-	window:              glfw.WindowHandle,
-	instance:            vk.Instance,
-	device:              vk.Device,
-	surface:             vk.SurfaceKHR,
-	physical_device:     vk.PhysicalDevice,
-	queue_indices:       [QueueFamily]int,
-	queues:              [QueueFamily]vk.Queue,
-	swapchain:           Swapchain,
-	pipeline:            Pipeline,
-	command_pool:        vk.CommandPool,
-	command_buffers:     [MAX_FRAMES_IN_FLIGHT]vk.CommandBuffer,
-	vertex_buffer:       Buffer,
-	index_buffer:        Buffer,
-	image_available:     [MAX_FRAMES_IN_FLIGHT]vk.Semaphore,
-	render_finished:     [MAX_FRAMES_IN_FLIGHT]vk.Semaphore,
-	in_flight:           [MAX_FRAMES_IN_FLIGHT]vk.Fence,
-	curr_frame:          u32,
-	framebuffer_resized: bool,
-}
+
 
 Vertex :: struct {
 	pos:   [2]f32,
@@ -68,14 +49,14 @@ VERTEX_ATTRIBUTES := [?]vk.VertexInputAttributeDescription{
 main :: proc() {
 	glfw.Init()
 	defer glfw.Terminate()
-	renderer: Renderer
+	ctx: Context
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
 	glfw.WindowHint(glfw.RESIZABLE, 0)
-	renderer.window = glfw.CreateWindow(800, 600, "Renderer", nil, nil)
-	defer glfw.DestroyWindow(renderer.window)
-	glfw.SetWindowUserPointer(renderer.window, &renderer)
-	glfw.SetFramebufferSizeCallback(renderer.window, framebuffer_size_callback)
-	context.user_ptr = &renderer.instance
+	ctx.window = glfw.CreateWindow(800, 600, "Context", nil, nil)
+	defer glfw.DestroyWindow(ctx.window)
+	glfw.SetWindowUserPointer(ctx.window, &ctx)
+	glfw.SetFramebufferSizeCallback(ctx.window, framebuffer_size_callback)
+	context.user_ptr = &ctx.instance
 	get_proc_address :: proc(p: rawptr, name: cstring) {
 		(cast(^rawptr)p)^ = glfw.GetInstanceProcAddress(
 			(^vk.Instance)(context.user_ptr)^,
@@ -83,59 +64,59 @@ main :: proc() {
 		)
 	}
 	vk.load_proc_addresses(get_proc_address)
-	create_instance(&renderer)
-	defer vk.DestroyInstance(renderer.instance, nil)
+	create_instance(&ctx)
+	defer vk.DestroyInstance(ctx.instance, nil)
 	vk.load_proc_addresses(get_proc_address)
 	if glfw.CreateWindowSurface(
-		   renderer.instance,
-		   renderer.window,
+		   ctx.instance,
+		   ctx.window,
 		   nil,
-		   &renderer.surface,
+		   &ctx.surface,
 	   ) !=
 	   .SUCCESS {
 		fmt.eprintf("ERROR: Failed to create gltf window surface\n")
 		os.exit(1)
 	}
-	defer vk.DestroySurfaceKHR(renderer.instance, renderer.surface, nil)
+	defer vk.DestroySurfaceKHR(ctx.instance, ctx.surface, nil)
 	extensions := get_extensions()
 	for ext in &extensions {
 		fmt.println(cstring(&ext.extensionName[0]))
 	}
-	device_get_suitable_device(&renderer)
-	find_queue_families(&renderer)
+	device_get_suitable_device(&ctx)
+	find_queue_families(&ctx)
 	fmt.println("Queue Indices:")
-	for q, f in renderer.queue_indices do fmt.printf("  %v: %d\n", f, q)
-	device_create(&renderer)
-	defer vk.DestroyDevice(renderer.device, nil)
-	for q, f in &renderer.queues {
+	for q, f in ctx.queue_indices do fmt.printf("  %v: %d\n", f, q)
+	device_create(&ctx)
+	defer vk.DestroyDevice(ctx.device, nil)
+	for q, f in &ctx.queues {
 		vk.GetDeviceQueue(
-			renderer.device,
-			u32(renderer.queue_indices[f]),
+			ctx.device,
+			u32(ctx.queue_indices[f]),
 			0,
 			&q,
 		)
 	}
-	swapchain_create(&renderer)
-	create_image_views(&renderer)
+	swapchain_create(&ctx)
+	create_image_views(&ctx)
 	graphics_pipeline_create(
-		&renderer,
+		&ctx,
 		"bin/assets/shaders/shader_builtin.vert.spv",
 		"bin/assets/shaders/shader_builtin.frag.spv",
 	)
 	defer vk.DestroyRenderPass(
-		renderer.device,
-		renderer.pipeline.render_pass,
+		ctx.device,
+		ctx.pipeline.render_pass,
 		nil,
 	)
 	defer vk.DestroyPipelineLayout(
-		renderer.device,
-		renderer.pipeline.layout,
+		ctx.device,
+		ctx.pipeline.layout,
 		nil,
 	)
-	defer vk.DestroyPipeline(renderer.device, renderer.pipeline.handle, nil)
-	create_framebuffers(&renderer)
-	command_pool_create(&renderer)
-	defer vk.DestroyCommandPool(renderer.device, renderer.command_pool, nil)
+	defer vk.DestroyPipeline(ctx.device, ctx.pipeline.handle, nil)
+	create_framebuffers(&ctx)
+	command_pool_create(&ctx)
+	defer vk.DestroyCommandPool(ctx.device, ctx.command_pool, nil)
 	vertices := [?]Vertex{
 		{{-0.5, -0.5}, {0.0, 0.0, 1.0}},
 		{{0.5, -0.5}, {1.0, 0.0, 0.0}},
@@ -143,33 +124,33 @@ main :: proc() {
 		{{-0.5, 0.5}, {1.0, 0.0, 0.0}},
 	}
 	indices := [?]u16{0, 1, 2, 2, 3, 0}
-	vertex_buffer_create(&renderer, vertices[:])
-	defer vk.DestroyBuffer(renderer.device, renderer.vertex_buffer.buffer, nil)
-	defer vk.FreeMemory(renderer.device, renderer.vertex_buffer.memory, nil)
-	index_buffer_create(&renderer, indices[:])
-	defer vk.DestroyBuffer(renderer.device, renderer.index_buffer.buffer, nil)
-	defer vk.FreeMemory(renderer.device, renderer.index_buffer.memory, nil)
-	command_buffers_create(&renderer)
-	defer swapchain_cleanup(&renderer)
-	create_sync_objects(&renderer)
+	vertex_buffer_create(&ctx, vertices[:])
+	defer vk.DestroyBuffer(ctx.device, ctx.vertex_buffer.buffer, nil)
+	defer vk.FreeMemory(ctx.device, ctx.vertex_buffer.memory, nil)
+	index_buffer_create(&ctx, indices[:])
+	defer vk.DestroyBuffer(ctx.device, ctx.index_buffer.buffer, nil)
+	defer vk.FreeMemory(ctx.device, ctx.index_buffer.memory, nil)
+	command_buffer_create(&ctx)
+	defer swapchain_cleanup(&ctx)
+	create_sync_objects(&ctx)
 	defer {
 		for i in 0..<MAX_FRAMES_IN_FLIGHT
 		{
-			vk.DestroySemaphore(renderer.device, renderer.image_available[i], nil);
-			vk.DestroySemaphore(renderer.device, renderer.render_finished[i], nil);
-			vk.DestroyFence(renderer.device, renderer.in_flight[i], nil);
+			vk.DestroySemaphore(ctx.device, ctx.image_available[i], nil);
+			vk.DestroySemaphore(ctx.device, ctx.render_finished[i], nil);
+			vk.DestroyFence(ctx.device, ctx.in_flight[i], nil);
 			
 		}
 	}
-	for (!glfw.WindowShouldClose(renderer.window)) {
+	for (!glfw.WindowShouldClose(ctx.window)) {
 		glfw.PollEvents()
-		draw_frame(&renderer, vertices[:], indices[:])
+		draw_frame(&ctx, vertices[:], indices[:])
 	}
-	vk.DeviceWaitIdle(renderer.device)
+	vk.DeviceWaitIdle(ctx.device)
 }
 
 draw_frame :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	vertices: []Vertex,
 	indices: []u16,
 ) {
@@ -187,7 +168,7 @@ draw_frame :: proc(
 	   res == .SUBOPTIMAL_KHR ||
 	   framebuffer_resized {
 		framebuffer_resized = false
-		swapchain_recreate(renderer)
+		swapchain_recreate(ctx)
 		return
 	} else if res != .SUCCESS {
 		fmt.eprintf("Error: Failed tp acquire swap chain image!\n")
@@ -195,7 +176,7 @@ draw_frame :: proc(
 	}
 	vk.ResetFences(device, 1, &in_flight[curr_frame])
 	vk.ResetCommandBuffer(command_buffers[curr_frame], {})
-	record_command_buffer(renderer, command_buffers[curr_frame], image_index)
+	record_command_buffer(ctx, command_buffers[curr_frame], image_index)
 	submit_info: vk.SubmitInfo
 	submit_info.sType = .SUBMIT_INFO
 	wait_semaphores := [?]vk.Semaphore{image_available[curr_frame]}
@@ -231,7 +212,7 @@ draw_frame :: proc(
 }
 
 record_command_buffer :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	buffer: vk.CommandBuffer,
 	image_index: u32,
 ) {
@@ -279,7 +260,7 @@ record_command_buffer :: proc(
 	}
 }
 
-create_instance :: proc(renderer: ^Renderer) {
+create_instance :: proc(ctx: ^Context) {
 	app_info: vk.ApplicationInfo
 	app_info.sType = .APPLICATION_INFO
 	app_info.pApplicationName = "Hello Triangle"
@@ -312,14 +293,14 @@ create_instance :: proc(renderer: ^Renderer) {
 	} else {
 		create_info.enabledLayerCount = 0
 	}
-	if (vk.CreateInstance(&create_info, nil, &renderer.instance) != .SUCCESS) {
+	if (vk.CreateInstance(&create_info, nil, &ctx.instance) != .SUCCESS) {
 		fmt.eprintf("ERROR: Failed to create instance\n")
 		return
 	}
 	fmt.println("Instance Created")
 }
 
-create_sync_objects :: proc(using renderer: ^Renderer) {
+create_sync_objects :: proc(using ctx: ^Context) {
 	semaphore_info: vk.SemaphoreCreateInfo
 	semaphore_info.sType = .SEMAPHORE_CREATE_INFO
 	fence_info: vk.FenceCreateInfo
@@ -367,7 +348,7 @@ get_extensions :: proc() -> []vk.ExtensionProperties {
 }
 
 choose_surface_format :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 ) -> vk.SurfaceFormatKHR {
 	for v in swapchain.support.formats {
 		if v.format == .B8G8R8A8_SRGB && v.colorSpace == .SRGB_NONLINEAR do return v

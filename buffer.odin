@@ -5,19 +5,12 @@ import "core:fmt"
 import "core:os"
 import vk "vendor:vulkan"
 
-Buffer :: struct {
-	buffer: vk.Buffer,
-	memory: vk.DeviceMemory,
-	length: int,
-	size:   vk.DeviceSize,
-}
-
-vertex_buffer_create :: proc(using renderer: ^Renderer, vertices: []Vertex) {
+vertex_buffer_create :: proc(using ctx: ^Context, vertices: []Vertex) {
 	vertex_buffer.length = len(vertices)
 	vertex_buffer.size = cast(vk.DeviceSize)(len(vertices) * size_of(Vertex))
 	staging: Buffer
 	buffer_create(
-		renderer,
+		ctx,
 		size_of(Vertex),
 		len(vertices),
 		{.TRANSFER_SRC},
@@ -29,24 +22,24 @@ vertex_buffer_create :: proc(using renderer: ^Renderer, vertices: []Vertex) {
 	mem.copy(data, raw_data(vertices), cast(int)vertex_buffer.size)
 	vk.UnmapMemory(device, staging.memory)
 	buffer_create(
-		renderer,
+		ctx,
 		size_of(Vertex),
 		len(vertices),
 		{.VERTEX_BUFFER, .TRANSFER_DST},
 		{.DEVICE_LOCAL},
 		&vertex_buffer,
 	)
-	buffer_copy(renderer, staging, vertex_buffer, vertex_buffer.size)
+	buffer_copy(ctx, staging, vertex_buffer, vertex_buffer.size)
 	vk.FreeMemory(device, staging.memory, nil)
 	vk.DestroyBuffer(device, staging.buffer, nil)
 }
 
-index_buffer_create :: proc(using renderer: ^Renderer, indices: []u16) {
+index_buffer_create :: proc(using ctx: ^Context, indices: []u16) {
 	index_buffer.length = len(indices)
 	index_buffer.size = cast(vk.DeviceSize)(len(indices) * size_of(indices[0]))
 	staging: Buffer
 	buffer_create(
-		renderer,
+		ctx,
 		size_of(indices[0]),
 		len(indices),
 		{.TRANSFER_SRC},
@@ -58,20 +51,20 @@ index_buffer_create :: proc(using renderer: ^Renderer, indices: []u16) {
 	mem.copy(data, raw_data(indices), cast(int)index_buffer.size)
 	vk.UnmapMemory(device, staging.memory)
 	buffer_create(
-		renderer,
+		ctx,
 		size_of(Vertex),
 		len(indices),
 		{.INDEX_BUFFER, .TRANSFER_DST},
 		{.DEVICE_LOCAL},
 		&index_buffer,
 	)
-	buffer_copy(renderer, staging, index_buffer, index_buffer.size)
+	buffer_copy(ctx, staging, index_buffer, index_buffer.size)
 	vk.FreeMemory(device, staging.memory, nil)
 	vk.DestroyBuffer(device, staging.buffer, nil)
 }
 
 buffer_copy :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	src, dst: Buffer,
 	size: vk.DeviceSize,
 ) {
@@ -106,7 +99,7 @@ buffer_copy :: proc(
 }
 
 buffer_create :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	member_size: int,
 	count: int,
 	usage: vk.BufferUsageFlags,
@@ -130,7 +123,7 @@ buffer_create :: proc(
 		sType           = .MEMORY_ALLOCATE_INFO,
 		allocationSize  = mem_requirements.size,
 		memoryTypeIndex = device_find_memory_type(
-			renderer,
+			ctx,
 			mem_requirements.memoryTypeBits,
 			{.HOST_VISIBLE, .HOST_COHERENT},
 		),

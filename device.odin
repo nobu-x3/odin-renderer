@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:os"
 import vk "vendor:vulkan"
 
-device_create :: proc(using renderer: ^Renderer) {
+device_create :: proc(using ctx: ^Context) {
 	unique_indices: map[int]b8
 	defer delete(unique_indices)
 	for i in queue_indices do unique_indices[i] = true
@@ -36,7 +36,7 @@ device_create :: proc(using renderer: ^Renderer) {
 	}
 }
 
-device_get_suitable_device :: proc(using renderer: ^Renderer) {
+device_get_suitable_device :: proc(using ctx: ^Context) {
 	device_count: u32
 	vk.EnumeratePhysicalDevices(instance, &device_count, nil)
 	if device_count == 0 {
@@ -46,7 +46,7 @@ device_get_suitable_device :: proc(using renderer: ^Renderer) {
 	devices := make([]vk.PhysicalDevice, device_count)
 	vk.EnumeratePhysicalDevices(instance, &device_count, raw_data(devices))
 	suitability :: proc(
-		using renderer: ^Renderer,
+		using ctx: ^Context,
 		dev: vk.PhysicalDevice,
 	) -> int {
 		props: vk.PhysicalDeviceProperties
@@ -58,13 +58,13 @@ device_get_suitable_device :: proc(using renderer: ^Renderer) {
 		score += cast(int)props.limits.maxImageDimension2D
 		if !features.geometryShader do return 0
 		if !device_check_extension_support(dev) do return 0
-		device_query_swapchain_details(renderer, dev)
+		device_query_swapchain_details(ctx, dev)
 		if len(swapchain.support.formats) == 0 || len(swapchain.support.present_modes) == 0 do return 0
 		return score
 	}
 	hiscore := 0
 	for dev in devices {
-		score := suitability(renderer, dev)
+		score := suitability(ctx, dev)
 		if score > hiscore {
 			physical_device = dev
 			hiscore = score
@@ -107,7 +107,7 @@ device_check_extension_support :: proc(
 }
 
 device_query_swapchain_details :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	dev: vk.PhysicalDevice,
 ) {
 	vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -147,7 +147,7 @@ device_query_swapchain_details :: proc(
 	}
 }
 
-find_queue_families :: proc(using renderer: ^Renderer) {
+find_queue_families :: proc(using ctx: ^Context) {
 	queue_count: u32
 	vk.GetPhysicalDeviceQueueFamilyProperties(
 		physical_device,
@@ -176,7 +176,7 @@ find_queue_families :: proc(using renderer: ^Renderer) {
 }
 
 device_find_memory_type :: proc(
-	using renderer: ^Renderer,
+	using ctx: ^Context,
 	type_filter: u32,
 	properties: vk.MemoryPropertyFlags,
 ) -> u32 {

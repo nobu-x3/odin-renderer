@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:os"
 import vk "vendor:vulkan"
 
-render_pass_create :: proc(using renderer: ^Renderer) {
+render_pass_create :: proc(using ctx: ^Context) {
 	color_attachment: vk.AttachmentDescription
 	color_attachment.format = swapchain.format.format
 	color_attachment.samples = {._1}

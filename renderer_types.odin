@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import vk "vendor:vulkan"
 import "vendor:glfw"
+
 Color :: struct {
     r, g, b, a : f32,
 }

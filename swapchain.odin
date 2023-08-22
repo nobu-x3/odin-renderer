@@ -1,10 +1,11 @@
 package renderer
 
 import "core:mem"
-import "core:fmt"
+import log "logger"
 import "core:os"
 import vk "vendor:vulkan"
 import "vendor:glfw"
+
 
 swapchain_create :: proc(using ctx: ^Context) {
 	using ctx.swapchain.support
@@ -49,7 +50,7 @@ swapchain_create :: proc(using ctx: ^Context) {
 		nil,
 		&swapchain.handle,
 	); res != .SUCCESS {
-		fmt.eprintf("Error: failed to create swap chain!\n")
+		log.fatal("Error: failed to create swap chain!\n")
 		os.exit(1)
 	}
 	vk.GetSwapchainImagesKHR(
@@ -114,7 +115,7 @@ create_image_views :: proc(using ctx: ^Context) {
 			nil,
 			&image_views[i],
 		); res != .SUCCESS {
-			fmt.eprintf("Error: failed to create image view!")
+			log.fatal("Error: failed to create image view!")
 			os.exit(1)
 		}
 	}
@@ -138,10 +139,33 @@ create_framebuffers :: proc(using ctx: ^Context) {
 			nil,
 			&swapchain.framebuffers[i],
 		); res != .SUCCESS {
-			fmt.eprintf("Error: Failed to create framebuffer #%d!\n", i)
+			log.fatal("Error: Failed to create framebuffer #%d!\n", i)
 			os.exit(1)
 		}
 	}
+}
+
+framebuffer_create :: proc(ctx: ^Context, render_pass: ^RenderPass, width, height: u32, attachments: []vk.ImageView, out_framebuffer: ^Framebuffer){
+	out_framebuffer.attachments = make([]vk.ImageView, len(attachments))
+	for v, i in attachments{
+		attach := [?]vk.ImageView{v}
+		framebuffer_info: vk.FramebufferCreateInfo
+		framebuffer_info.sType = .FRAMEBUFFER_CREATE_INFO
+		framebuffer_info.renderPass = render_pass.handle
+		framebuffer_info.attachmentCount = 1
+		framebuffer_info.pAttachments = &attachments[0]
+		framebuffer_info.width = width
+		framebuffer_info.height = height
+		framebuffer_info.layers = 1
+		if res := vk.CreateFramebuffer(ctx.device, &framebuffer_info, nil, &out_framebuffer.handle); res != .SUCCESS {
+			log.fatal("Error: Failed to create framebuffer #%d!\n", i)
+			os.exit(1)
+		}
+	}
+}
+
+framebuffer_destroy :: proc(ctx: ^Context, framebuffer: ^Framebuffer){
+
 }
 
 framebuffer_size_callback :: proc "c" (

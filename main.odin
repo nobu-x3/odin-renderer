@@ -152,10 +152,18 @@ main :: proc() {
 	command_buffers_create(&renderer)
 	defer swapchain_cleanup(&renderer)
 	create_sync_objects(&renderer)
+	defer {
+		for i in 0..<MAX_FRAMES_IN_FLIGHT
+		{
+			vk.DestroySemaphore(renderer.device, renderer.image_available[i], nil);
+			vk.DestroySemaphore(renderer.device, renderer.render_finished[i], nil);
+			vk.DestroyFence(renderer.device, renderer.in_flight[i], nil);
+			
+		}
+	}
 	for (!glfw.WindowShouldClose(renderer.window)) {
 		glfw.PollEvents()
 		draw_frame(&renderer, vertices[:], indices[:])
-		glfw.SwapBuffers(renderer.window)
 	}
 	vk.DeviceWaitIdle(renderer.device)
 }

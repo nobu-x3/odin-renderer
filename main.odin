@@ -1,8 +1,7 @@
 package renderer
 
-import "core:fmt"
+import log "logger"
 import "core:os"
-import "core:mem"
 import "core:strings"
 import "vendor:glfw"
 import vk "vendor:vulkan"
@@ -74,18 +73,18 @@ main :: proc() {
 		   &ctx.surface,
 	   ) !=
 	   .SUCCESS {
-		fmt.eprintf("ERROR: Failed to create gltf window surface\n")
+		log.fatal("ERROR: Failed to create gltf window surface\n")
 		os.exit(1)
 	}
 	defer vk.DestroySurfaceKHR(ctx.instance, ctx.surface, nil)
 	extensions := get_extensions()
 	for ext in &extensions {
-		fmt.println(cstring(&ext.extensionName[0]))
+		log.info(cstring(&ext.extensionName[0]))
 	}
 	device_get_suitable_device(&ctx)
 	find_queue_families(&ctx)
-	fmt.println("Queue Indices:")
-	for q, f in ctx.queue_indices do fmt.printf("  %v: %d\n", f, q)
+	log.info("Queue Indices:")
+	for q, f in ctx.queue_indices do log.info("  %v: %d\n", f, q)
 	device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
 	for q, f in &ctx.queues {
@@ -171,7 +170,7 @@ draw_frame :: proc(
 		swapchain_recreate(ctx)
 		return
 	} else if res != .SUCCESS {
-		fmt.eprintf("Error: Failed tp acquire swap chain image!\n")
+		log.fatal("Error: Failed tp acquire swap chain image!\n")
 		os.exit(1)
 	}
 	vk.ResetFences(device, 1, &in_flight[curr_frame])
@@ -195,7 +194,7 @@ draw_frame :: proc(
 		&submit_info,
 		in_flight[curr_frame],
 	); res != .SUCCESS {
-		fmt.eprintf("Error: Failed to submit draw command buffer!\n")
+		log.fatal("Error: Failed to submit draw command buffer!\n")
 		os.exit(1)
 	}
 	present_info: vk.PresentInfoKHR
@@ -221,7 +220,7 @@ record_command_buffer :: proc(
 	begin_info.flags = {}
 	begin_info.pInheritanceInfo = nil
 	if res := vk.BeginCommandBuffer(buffer, &begin_info); res != .SUCCESS {
-		fmt.eprintf("Error: Failed to begin recording command buffer!\n")
+		log.fatal("Error: Failed to begin recording command buffer!\n")
 		os.exit(1)
 	}
 	render_pass_info: vk.RenderPassBeginInfo
@@ -255,7 +254,7 @@ record_command_buffer :: proc(
 	vk.CmdDrawIndexed(buffer, cast(u32)index_buffer.length, 1, 0, 0, 0)
 	vk.CmdEndRenderPass(buffer)
 	if res := vk.EndCommandBuffer(buffer); res != .SUCCESS {
-		fmt.eprintf("Error: Failed to record command buffer!\n")
+		log.fatal("Error: Failed to record command buffer!\n")
 		os.exit(1)
 	}
 }
@@ -284,20 +283,20 @@ create_instance :: proc(ctx: ^Context) {
 			for layer in &layers {
 				if name == cstring(&layer.layerName[0]) do continue outer
 			}
-			fmt.eprintf("ERROR: validation layer %q not available\n", name)
+			log.fatal("ERROR: validation layer %q not available\n", name)
 			os.exit(1)
 		}
 		create_info.ppEnabledLayerNames = &VALIDATION_LAYERS[0]
 		create_info.enabledLayerCount = len(VALIDATION_LAYERS)
-		fmt.println("Validation Layers Loaded")
+		log.info("Validation Layers Loaded")
 	} else {
 		create_info.enabledLayerCount = 0
 	}
 	if (vk.CreateInstance(&create_info, nil, &ctx.instance) != .SUCCESS) {
-		fmt.eprintf("ERROR: Failed to create instance\n")
+		log.error("ERROR: Failed to create instance\n")
 		return
 	}
-	fmt.println("Instance Created")
+	log.info("Instance Created")
 }
 
 create_sync_objects :: proc(using ctx: ^Context) {
@@ -314,7 +313,7 @@ create_sync_objects :: proc(using ctx: ^Context) {
 			&image_available[i],
 		)
 		if res != .SUCCESS {
-			fmt.eprintf(
+			log.fatal(
 				"Error: Failed to create \"image_available\" semaphore\n",
 			)
 			os.exit(1)
@@ -326,14 +325,14 @@ create_sync_objects :: proc(using ctx: ^Context) {
 			&render_finished[i],
 		)
 		if res != .SUCCESS {
-			fmt.eprintf(
+			log.fatal(
 				"Error: Failed to create \"render_finished\" semaphore\n",
 			)
 			os.exit(1)
 		}
 		res = vk.CreateFence(device, &fence_info, nil, &in_flight[i])
 		if res != .SUCCESS {
-			fmt.eprintf("Error: Failed to create \"in_flight\" fence\n")
+			log.fatal("Error: Failed to create \"in_flight\" fence\n")
 			os.exit(1)
 		}
 	}

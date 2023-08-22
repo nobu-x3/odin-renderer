@@ -1,7 +1,6 @@
 package renderer
 
-import "core:mem"
-import "core:fmt"
+import log "logger"
 import "core:os"
 import vk "vendor:vulkan"
 
@@ -31,7 +30,7 @@ device_create :: proc(using ctx: ^Context) {
 	device_create_info.enabledLayerCount = 0
 	if vk.CreateDevice(physical_device, &device_create_info, nil, &device) !=
 	   .SUCCESS {
-		fmt.eprintf("ERROR: Failed to create logical device\n")
+		log.fatal("ERROR: Failed to create logical device\n")
 		os.exit(1)
 	}
 }
@@ -40,7 +39,7 @@ device_get_suitable_device :: proc(using ctx: ^Context) {
 	device_count: u32
 	vk.EnumeratePhysicalDevices(instance, &device_count, nil)
 	if device_count == 0 {
-		fmt.eprintf("ERROR: Failed to find GPUs with Vulkan support\n")
+		log.fatal("ERROR: Failed to find GPUs with Vulkan support\n")
 		os.exit(1)
 	}
 	devices := make([]vk.PhysicalDevice, device_count)
@@ -71,7 +70,7 @@ device_get_suitable_device :: proc(using ctx: ^Context) {
 		}
 	}
 	if (hiscore == 0) {
-		fmt.eprintf("ERROR: Failed to find a suitable GPU\n")
+		log.fatal("ERROR: Failed to find a suitable GPU\n")
 		os.exit(1)
 	}
 }
@@ -189,8 +188,7 @@ device_find_memory_type :: proc(
 			return i
 		}
 	}
-
-	fmt.eprintf("Error: Failed to find suitable memory type!\n")
+	log.fatal("Error: Failed to find suitable memory type!\n")
 	os.exit(1)
 }
 

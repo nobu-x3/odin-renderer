@@ -1,7 +1,6 @@
 package renderer
 
-import "core:mem"
-import "core:fmt"
+import log "logger"
 import "core:os"
 import vk "vendor:vulkan"
 
@@ -43,7 +42,7 @@ render_pass_create :: proc(using ctx: ^Context) {
 		nil,
 		&pipeline.render_pass,
 	); res != .SUCCESS {
-		fmt.eprintf("Error: Failed to create render pass!\n")
+		log.fatal("Error: Failed to create render pass!\n")
 		os.exit(1)
 	}
 }

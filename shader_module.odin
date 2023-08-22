@@ -1,7 +1,6 @@
 package renderer
 
-import "core:mem"
-import "core:fmt"
+import log "logger"
 import "core:os"
 import vk "vendor:vulkan"
 
@@ -16,7 +15,7 @@ shader_module_create :: proc(
 	shader: vk.ShaderModule
 	if res := vk.CreateShaderModule(device, &create_info, nil, &shader);
 	   res != .SUCCESS {
-		fmt.eprintf("Error: Could not create shader module!\n")
+		log.fatal("Error: Could not create shader module!\n")
 		os.exit(1)
 	}
 	return shader

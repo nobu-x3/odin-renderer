@@ -1,7 +1,7 @@
 package renderer
 
 import "core:mem"
-import "core:fmt"
+import log "logger"
 import "core:os"
 import vk "vendor:vulkan"
 
@@ -114,7 +114,7 @@ buffer_create :: proc(
 	}
 	if res := vk.CreateBuffer(device, &buffer_info, nil, &buffer.buffer);
 	   res != .SUCCESS {
-		fmt.eprintf("Error: failed to create buffer\n")
+		log.fatal("Error: failed to create buffer\n")
 		os.exit(1)
 	}
 	mem_requirements: vk.MemoryRequirements
@@ -130,7 +130,7 @@ buffer_create :: proc(
 	}
 	if res := vk.AllocateMemory(device, &alloc_info, nil, &buffer.memory);
 	   res != .SUCCESS {
-		fmt.eprintf("Error: Failed to allocate buffer memory!\n")
+		log.fatal("Error: Failed to allocate buffer memory!\n")
 		os.exit(1)
 	}
 	vk.BindBufferMemory(device, buffer.buffer, buffer.memory, 0)

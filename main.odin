@@ -1,60 +1,24 @@
-package renderer
+package odin_renderer
 
 import log "logger"
 import "core:os"
 import "core:strings"
 import "vendor:glfw"
 import vk "vendor:vulkan"
+import rd "renderer"
 
-MAX_FRAMES_IN_FLIGHT :: 2
-
-
-
-Vertex :: struct {
-	pos:   [2]f32,
-	color: [3]f32,
-}
-
-QueueFamily :: enum {
-	Graphics,
-	Present,
-}
-
-DEVICE_EXTENSIONS := [?]cstring{"VK_KHR_swapchain"}
-VALIDATION_LAYERS := [?]cstring{"VK_LAYER_KHRONOS_validation"}
-
-VERTEX_BINDING := vk.VertexInputBindingDescription {
-	binding   = 0,
-	stride    = size_of(Vertex),
-	inputRate = .VERTEX,
-}
-
-VERTEX_ATTRIBUTES := [?]vk.VertexInputAttributeDescription{
-	{
-		binding = 0,
-		location = 0,
-		format = .R32G32_SFLOAT,
-		offset = cast(u32)offset_of(Vertex, pos),
-	},
-	{
-		binding = 0,
-		location = 1,
-		format = .R32G32B32_SFLOAT,
-		offset = cast(u32)offset_of(Vertex, color),
-	},
-}
 
 
 main :: proc() {
 	glfw.Init()
 	defer glfw.Terminate()
-	ctx: Context
+	ctx: rd.Context
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
 	glfw.WindowHint(glfw.RESIZABLE, 0)
 	ctx.window = glfw.CreateWindow(800, 600, "Context", nil, nil)
 	defer glfw.DestroyWindow(ctx.window)
 	glfw.SetWindowUserPointer(ctx.window, &ctx)
-	glfw.SetFramebufferSizeCallback(ctx.window, framebuffer_size_callback)
+	glfw.SetFramebufferSizeCallback(ctx.window, rd.framebuffer_size_callback)
 	context.user_ptr = &ctx.instance
 	get_proc_address :: proc(p: rawptr, name: cstring) {
 		(cast(^rawptr)p)^ = glfw.GetInstanceProcAddress(
@@ -81,11 +45,11 @@ main :: proc() {
 	for ext in &extensions {
 		log.info(cstring(&ext.extensionName[0]))
 	}
-	device_create(&ctx)
+	rd.device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
-	swapchain_create(&ctx, &ctx.swapchain)
-	create_image_views(&ctx)
-	graphics_pipeline_create(
+	rd.swapchain_create(&ctx, &ctx.swapchain)
+	rd.create_image_views(&ctx)
+	rd.graphics_pipeline_create(
 		&ctx,
 		"bin/assets/shaders/shader_builtin.vert.spv",
 		"bin/assets/shaders/shader_builtin.frag.spv",
@@ -101,27 +65,27 @@ main :: proc() {
 		nil,
 	)
 	defer vk.DestroyPipeline(ctx.device, ctx.pipeline.handle, nil)
-	create_framebuffers(&ctx)
-	command_pool_create(&ctx)
+	rd.create_framebuffers(&ctx)
+	rd.command_pool_create(&ctx)
 	defer vk.DestroyCommandPool(ctx.device, ctx.command_pool, nil)
-	vertices := [?]Vertex{
+	vertices := [?]rd.Vertex{
 		{{-0.5, -0.5}, {0.0, 0.0, 1.0}},
 		{{0.5, -0.5}, {1.0, 0.0, 0.0}},
 		{{0.5, 0.5}, {0.0, 1.0, 0.0}},
 		{{-0.5, 0.5}, {1.0, 0.0, 0.0}},
 	}
 	indices := [?]u16{0, 1, 2, 2, 3, 0}
-	vertex_buffer_create(&ctx, vertices[:])
+	rd.vertex_buffer_create(&ctx, vertices[:])
 	defer vk.DestroyBuffer(ctx.device, ctx.vertex_buffer.buffer, nil)
 	defer vk.FreeMemory(ctx.device, ctx.vertex_buffer.memory, nil)
-	index_buffer_create(&ctx, indices[:])
+	rd.index_buffer_create(&ctx, indices[:])
 	defer vk.DestroyBuffer(ctx.device, ctx.index_buffer.buffer, nil)
 	defer vk.FreeMemory(ctx.device, ctx.index_buffer.memory, nil)
-	command_buffer_create(&ctx)
-	defer swapchain_cleanup(&ctx)
+	rd.command_buffer_create(&ctx)
+	defer rd.swapchain_cleanup(&ctx)
 	create_sync_objects(&ctx)
 	defer {
-		for i in 0..<MAX_FRAMES_IN_FLIGHT
+		for i in 0..<rd.MAX_FRAMES_IN_FLIGHT
 		{
 			vk.DestroySemaphore(ctx.device, ctx.image_available[i], nil);
 			vk.DestroySemaphore(ctx.device, ctx.render_finished[i], nil);
@@ -137,8 +101,8 @@ main :: proc() {
 }
 
 draw_frame :: proc(
-	using ctx: ^Context,
-	vertices: []Vertex,
+	using ctx: ^rd.Context,
+	vertices: []rd.Vertex,
 	indices: []u16,
 ) {
 	vk.WaitForFences(device, 1, &in_flight[curr_frame], true, max(u64))
@@ -155,7 +119,7 @@ draw_frame :: proc(
 	   res == .SUBOPTIMAL_KHR ||
 	   framebuffer_resized {
 		framebuffer_resized = false
-		swapchain_recreate(ctx)
+		rd.swapchain_recreate(ctx)
 		return
 	} else if res != .SUCCESS {
 		log.fatal("Error: Failed tp acquire swap chain image!\n")
@@ -195,11 +159,11 @@ draw_frame :: proc(
 	present_info.pImageIndices = &image_index
 	present_info.pResults = nil
 	vk.QueuePresentKHR(queues[.Present], &present_info)
-	curr_frame = (curr_frame + 1) % MAX_FRAMES_IN_FLIGHT
+	curr_frame = (curr_frame + 1) % rd.MAX_FRAMES_IN_FLIGHT
 }
 
 record_command_buffer :: proc(
-	using ctx: ^Context,
+	using ctx: ^rd.Context,
 	buffer: vk.CommandBuffer,
 	image_index: u32,
 ) {
@@ -247,7 +211,7 @@ record_command_buffer :: proc(
 	}
 }
 
-create_instance :: proc(ctx: ^Context) {
+create_instance :: proc(ctx: ^rd.Context) {
 	app_info: vk.ApplicationInfo
 	app_info.sType = .APPLICATION_INFO
 	app_info.pApplicationName = "Hello Triangle"
@@ -267,15 +231,15 @@ create_instance :: proc(ctx: ^Context) {
 		vk.EnumerateInstanceLayerProperties(&layer_count, nil)
 		layers := make([]vk.LayerProperties, layer_count)
 		vk.EnumerateInstanceLayerProperties(&layer_count, raw_data(layers))
-		outer: for name in VALIDATION_LAYERS {
+		outer: for name in rd.VALIDATION_LAYERS {
 			for layer in &layers {
 				if name == cstring(&layer.layerName[0]) do continue outer
 			}
 			log.fatal("ERROR: validation layer %q not available\n", name)
 			os.exit(1)
 		}
-		create_info.ppEnabledLayerNames = &VALIDATION_LAYERS[0]
-		create_info.enabledLayerCount = len(VALIDATION_LAYERS)
+		create_info.ppEnabledLayerNames = &rd.VALIDATION_LAYERS[0]
+		create_info.enabledLayerCount = len(rd.VALIDATION_LAYERS)
 		log.info("Validation Layers Loaded")
 	} else {
 		create_info.enabledLayerCount = 0
@@ -287,13 +251,13 @@ create_instance :: proc(ctx: ^Context) {
 	log.info("Instance Created")
 }
 
-create_sync_objects :: proc(using ctx: ^Context) {
+create_sync_objects :: proc(using ctx: ^rd.Context) {
 	semaphore_info: vk.SemaphoreCreateInfo
 	semaphore_info.sType = .SEMAPHORE_CREATE_INFO
 	fence_info: vk.FenceCreateInfo
 	fence_info.sType = .FENCE_CREATE_INFO
 	fence_info.flags = {.SIGNALED}
-	for i in 0 ..< MAX_FRAMES_IN_FLIGHT {
+	for i in 0 ..< rd.MAX_FRAMES_IN_FLIGHT {
 		res := vk.CreateSemaphore(
 			device,
 			&semaphore_info,

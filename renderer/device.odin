@@ -1,6 +1,6 @@
 package renderer
 
-import log "logger"
+import log "../logger"
 import "core:os"
 import vk "vendor:vulkan"
 

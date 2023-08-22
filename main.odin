@@ -81,21 +81,9 @@ main :: proc() {
 	for ext in &extensions {
 		log.info(cstring(&ext.extensionName[0]))
 	}
-	device_get_suitable_device(&ctx)
-	find_queue_families(&ctx)
-	log.info("Queue Indices:")
-	for q, f in ctx.queue_indices do log.info("  %v: %d\n", f, q)
 	device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
-	for q, f in &ctx.queues {
-		vk.GetDeviceQueue(
-			ctx.device,
-			u32(ctx.queue_indices[f]),
-			0,
-			&q,
-		)
-	}
-	swapchain_create(&ctx)
+	swapchain_create(&ctx, &ctx.swapchain)
 	create_image_views(&ctx)
 	graphics_pipeline_create(
 		&ctx,
@@ -345,13 +333,3 @@ get_extensions :: proc() -> []vk.ExtensionProperties {
 	vk.EnumerateInstanceExtensionProperties(nil, &n_ext, raw_data(extensions))
 	return extensions
 }
-
-choose_surface_format :: proc(
-	using ctx: ^Context,
-) -> vk.SurfaceFormatKHR {
-	for v in swapchain.support.formats {
-		if v.format == .B8G8R8A8_SRGB && v.colorSpace == .SRGB_NONLINEAR do return v
-	}
-	return swapchain.support.formats[0]
-}
-

@@ -5,6 +5,10 @@ import "core:os"
 import vk "vendor:vulkan"
 
 device_create :: proc(using ctx: ^Context) {
+	device_get_suitable_device(ctx)
+	find_queue_families(ctx)
+	log.info("Queue Indices:")
+	for q, f in ctx.queue_indices do log.info("  %v: %d\n", f, q)
 	unique_indices: map[int]b8
 	defer delete(unique_indices)
 	for i in queue_indices do unique_indices[i] = true
@@ -32,6 +36,14 @@ device_create :: proc(using ctx: ^Context) {
 	   .SUCCESS {
 		log.fatal("ERROR: Failed to create logical device\n")
 		os.exit(1)
+	}
+	for q, f in &ctx.queues {
+		vk.GetDeviceQueue(
+			ctx.device,
+			u32(ctx.queue_indices[f]),
+			0,
+			&q,
+		)
 	}
 }
 

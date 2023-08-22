@@ -19,9 +19,9 @@ warning :: proc(args: ..any, sep := " "){
 }
 
 error :: proc(args: ..any, sep := " "){
-    fmt.println(args, sep)
+    fmt.eprintln(args, sep)
 }
 
 fatal :: proc(args: ..any, sep := " "){
-    fmt.println(args, sep)
+    fmt.eprintln(args, sep)
 }

@@ -6,11 +6,16 @@ import vk "vendor:vulkan"
 import "vendor:glfw"
 
 
-swapchain_create :: proc(using ctx: ^Context) {
+swapchain_create :: proc(using ctx: ^Context, out_swapchain: ^Swapchain, width :u32 = 0, height :u32 =0) {
 	using ctx.swapchain.support
 	swapchain.format = choose_surface_format(ctx)
 	swapchain.present_mode = choose_present_mode(ctx)
-	swapchain.extent = choose_swap_extent(ctx)
+	if width == 0 || height == 0{
+		swapchain.extent = choose_swap_extent(ctx)
+	}
+	else{
+		swapchain.extent = vk.Extent2D{width = width, height = height}
+	}
 	swapchain.image_count = capabilities.minImageCount + 1
 	if capabilities.maxImageCount > 0 &&
 	   swapchain.image_count > capabilities.maxImageCount {
@@ -75,7 +80,7 @@ swapchain_recreate :: proc(using ctx: ^Context) {
 	}
 	vk.DeviceWaitIdle(device)
 	swapchain_cleanup(ctx)
-	swapchain_create(ctx)
+	swapchain_create(ctx, &ctx.swapchain)
 	create_image_views(ctx)
 	create_framebuffers(ctx)
 }
@@ -173,6 +178,15 @@ framebuffer_size_callback :: proc "c" (
 ) {
 	using ctx := cast(^Context)glfw.GetWindowUserPointer(window)
 	framebuffer_resized = true
+}
+
+choose_surface_format :: proc(
+	using ctx: ^Context,
+) -> vk.SurfaceFormatKHR {
+	for v in swapchain.support.formats {
+		if v.format == .B8G8R8A8_SRGB && v.colorSpace == .SRGB_NONLINEAR do return v
+	}
+	return swapchain.support.formats[0]
 }
 
 choose_present_mode :: proc(using ctx: ^Context) -> vk.PresentModeKHR {

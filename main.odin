@@ -8,7 +8,6 @@ import vk "vendor:vulkan"
 import rd "renderer"
 
 
-
 main :: proc() {
 	glfw.Init()
 	defer glfw.Terminate()
@@ -30,12 +29,7 @@ main :: proc() {
 	create_instance(&ctx)
 	defer vk.DestroyInstance(ctx.instance, nil)
 	vk.load_proc_addresses(get_proc_address)
-	if glfw.CreateWindowSurface(
-		   ctx.instance,
-		   ctx.window,
-		   nil,
-		   &ctx.surface,
-	   ) !=
+	if glfw.CreateWindowSurface(ctx.instance, ctx.window, nil, &ctx.surface) !=
 	   .SUCCESS {
 		log.fatal("ERROR: Failed to create gltf window surface\n")
 		os.exit(1)
@@ -48,22 +42,18 @@ main :: proc() {
 	rd.device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
 	rd.swapchain_create(&ctx, &ctx.swapchain)
+    rd.render_pass_create(&ctx, {0.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 800.0, 600.0}, 1.0, 0, &ctx.main_render_pass)
+    defer rd.render_pass_destroy(&ctx, &ctx.main_render_pass)
 	rd.create_image_views(&ctx)
 	rd.graphics_pipeline_create(
 		&ctx,
+        &ctx.main_render_pass,
+        vk.Viewport{x = 0, y = 0, width = 800, height = 600, minDepth = 0, maxDepth = 1},
+        vk.Rect2D{},
 		"bin/assets/shaders/shader_builtin.vert.spv",
 		"bin/assets/shaders/shader_builtin.frag.spv",
 	)
-	defer vk.DestroyRenderPass(
-		ctx.device,
-		ctx.pipeline.render_pass,
-		nil,
-	)
-	defer vk.DestroyPipelineLayout(
-		ctx.device,
-		ctx.pipeline.layout,
-		nil,
-	)
+	defer vk.DestroyPipelineLayout(ctx.device, ctx.pipeline.layout, nil)
 	defer vk.DestroyPipeline(ctx.device, ctx.pipeline.handle, nil)
 	rd.create_framebuffers(&ctx)
 	rd.command_pool_create(&ctx)
@@ -85,12 +75,11 @@ main :: proc() {
 	defer rd.swapchain_cleanup(&ctx)
 	create_sync_objects(&ctx)
 	defer {
-		for i in 0..<rd.MAX_FRAMES_IN_FLIGHT
-		{
-			vk.DestroySemaphore(ctx.device, ctx.image_available[i], nil);
-			vk.DestroySemaphore(ctx.device, ctx.render_finished[i], nil);
-			vk.DestroyFence(ctx.device, ctx.in_flight[i], nil);
-			
+		for i in 0 ..< rd.MAX_FRAMES_IN_FLIGHT {
+			vk.DestroySemaphore(ctx.device, ctx.image_available[i], nil)
+			vk.DestroySemaphore(ctx.device, ctx.render_finished[i], nil)
+			vk.DestroyFence(ctx.device, ctx.in_flight[i], nil)
+
 		}
 	}
 	for (!glfw.WindowShouldClose(ctx.window)) {
@@ -175,17 +164,6 @@ record_command_buffer :: proc(
 		log.fatal("Error: Failed to begin recording command buffer!\n")
 		os.exit(1)
 	}
-	render_pass_info: vk.RenderPassBeginInfo
-	render_pass_info.sType = .RENDER_PASS_BEGIN_INFO
-	render_pass_info.renderPass = pipeline.render_pass
-	render_pass_info.framebuffer = swapchain.framebuffers[image_index]
-	render_pass_info.renderArea.offset = {0, 0}
-	render_pass_info.renderArea.extent = swapchain.extent
-	clear_color: vk.ClearValue
-	clear_color.color.float32 = [4]f32{0.0, 0.0, 0.0, 1.0}
-	render_pass_info.clearValueCount = 1
-	render_pass_info.pClearValues = &clear_color
-	vk.CmdBeginRenderPass(buffer, &render_pass_info, .INLINE)
 	vk.CmdBindPipeline(buffer, .GRAPHICS, pipeline.handle)
 	vertex_buffers := [?]vk.Buffer{vertex_buffer.buffer}
 	offsets := [?]vk.DeviceSize{0}
@@ -205,6 +183,7 @@ record_command_buffer :: proc(
 	vk.CmdSetScissor(buffer, 0, 1, &scissor)
 	vk.CmdDrawIndexed(buffer, cast(u32)index_buffer.length, 1, 0, 0, 0)
 	vk.CmdEndRenderPass(buffer)
+    rd.render_pass_begin(&main_render_pass, buffer, swapchain.framebuffers[curr_frame])
 	if res := vk.EndCommandBuffer(buffer); res != .SUCCESS {
 		log.fatal("Error: Failed to record command buffer!\n")
 		os.exit(1)

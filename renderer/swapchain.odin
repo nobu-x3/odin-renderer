@@ -131,7 +131,7 @@ create_framebuffers :: proc(using ctx: ^Context) {
 		attachments := [?]vk.ImageView{v}
 		framebuffer_info: vk.FramebufferCreateInfo
 		framebuffer_info.sType = .FRAMEBUFFER_CREATE_INFO
-		framebuffer_info.renderPass = pipeline.render_pass
+		framebuffer_info.renderPass = main_render_pass.handle
 		framebuffer_info.attachmentCount = 1
 		framebuffer_info.pAttachments = &attachments[0]
 		framebuffer_info.width = swapchain.extent.width

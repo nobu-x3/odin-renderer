@@ -59,6 +59,7 @@ Context :: struct {
 	swapchain:           Swapchain,
 	pipeline:            Pipeline,
 	command_pool:        vk.CommandPool,
+	main_render_pass:    RenderPass,
 	command_buffers:     [MAX_FRAMES_IN_FLIGHT]vk.CommandBuffer,
 	vertex_buffer:       Buffer,
 	index_buffer:        Buffer,
@@ -78,7 +79,6 @@ Buffer :: struct {
 
 Pipeline :: struct {
 	handle:      vk.Pipeline,
-	render_pass: vk.RenderPass,
 	layout:      vk.PipelineLayout,
 }
 
@@ -96,10 +96,11 @@ Swapchain :: struct {
 }
 
 RenderPass :: struct {
-	handle: vk.RenderPass,
-	depth:  f32,
-	color:  Color,
-	extent: Extent2D,
+	handle:  vk.RenderPass,
+	depth:   f32,
+	color:   Color,
+	extent:  Extent2D,
+	stencil: u32,
 }
 
 Framebuffer :: struct {
@@ -136,4 +137,3 @@ TextureData :: struct {
 	image:   Image,
 	sampler: vk.Sampler,
 }
-

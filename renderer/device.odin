@@ -38,12 +38,7 @@ device_create :: proc(using ctx: ^Context) {
 		os.exit(1)
 	}
 	for q, f in &ctx.queues {
-		vk.GetDeviceQueue(
-			ctx.device,
-			u32(ctx.queue_indices[f]),
-			0,
-			&q,
-		)
+		vk.GetDeviceQueue(ctx.device, u32(ctx.queue_indices[f]), 0, &q)
 	}
 }
 
@@ -56,10 +51,7 @@ device_get_suitable_device :: proc(using ctx: ^Context) {
 	}
 	devices := make([]vk.PhysicalDevice, device_count)
 	vk.EnumeratePhysicalDevices(instance, &device_count, raw_data(devices))
-	suitability :: proc(
-		ctx: ^Context,
-		dev: vk.PhysicalDevice,
-	) -> int {
+	suitability :: proc(ctx: ^Context, dev: vk.PhysicalDevice) -> int {
 		props: vk.PhysicalDeviceProperties
 		features: vk.PhysicalDeviceFeatures
 		vk.GetPhysicalDeviceProperties(dev, &props)
@@ -67,10 +59,9 @@ device_get_suitable_device :: proc(using ctx: ^Context) {
 		score := 0
 		if props.deviceType == .DISCRETE_GPU do score += 1000
 		score += cast(int)props.limits.maxImageDimension2D
-		if !features.geometryShader do return 0
 		if !device_check_extension_support(dev) do return 0
-		device_query_swapchain_details(ctx, dev)
-		if len(swapchain.support.formats) == 0 || len(swapchain.support.present_modes) == 0 do return 0
+		details := device_query_swapchain_details(ctx, dev)
+		if len(details.formats) == 0 || len(details.present_modes) == 0 do return 0
 		return score
 	}
 	hiscore := 0
@@ -121,41 +112,62 @@ device_query_swapchain_details :: proc(
 	using ctx: ^Context,
 	dev: vk.PhysicalDevice,
 ) -> SwapchainDescription {
-	desc : SwapchainDescription
-	vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+	desc: SwapchainDescription
+	if res := vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
 		dev,
 		surface,
 		&desc.capabilities,
-	)
+	); res != .SUCCESS {
+		log.fatal("Failed to query physical device surface capabilities")
+		os.exit(1)
+	}
 	format_count: u32
-	vk.GetPhysicalDeviceSurfaceFormatsKHR(dev, surface, &format_count, nil)
+	if res := vk.GetPhysicalDeviceSurfaceFormatsKHR(
+		dev,
+		surface,
+		&format_count,
+		nil,
+	); res != .SUCCESS {
+		log.fatal("Failed to query physical device surface formats")
+		os.exit(1)
+	}
 	if format_count > 0 {
 		desc.formats = make([]vk.SurfaceFormatKHR, format_count)
-		vk.GetPhysicalDeviceSurfaceFormatsKHR(
+		if res := vk.GetPhysicalDeviceSurfaceFormatsKHR(
 			dev,
 			surface,
 			&format_count,
 			raw_data(desc.formats),
-		)
+		); res != .SUCCESS {
+			log.fatal(
+				"Failed to query physical device surface formats 2nd time",
+			)
+			os.exit(1)
+		}
 	}
 	present_mode_count: u32
-	vk.GetPhysicalDeviceSurfacePresentModesKHR(
+	if res := vk.GetPhysicalDeviceSurfacePresentModesKHR(
 		dev,
 		surface,
 		&present_mode_count,
 		nil,
-	)
+	); res != .SUCCESS {
+		log.fatal("Failed to query physical device surface present modes")
+		os.exit(1)
+	}
 	if present_mode_count > 0 {
-		desc.present_modes = make(
-			[]vk.PresentModeKHR,
-			present_mode_count,
-		)
-		vk.GetPhysicalDeviceSurfacePresentModesKHR(
+		desc.present_modes = make([]vk.PresentModeKHR, present_mode_count)
+		if res := vk.GetPhysicalDeviceSurfacePresentModesKHR(
 			dev,
 			surface,
 			&present_mode_count,
 			raw_data(desc.present_modes),
-		)
+		); res != .SUCCESS {
+			log.fatal(
+				"Failed to query physical device surface present modes 2nd time"
+			)
+			os.exit(1)
+		}
 	}
 	return desc
 }
@@ -206,22 +218,35 @@ device_find_memory_type :: proc(
 	os.exit(1)
 }
 
-find_memory_index :: proc(ctx: ^Context, types_filter : u32, mem_flags: vk.MemoryPropertyFlags) -> i32 {
-    mem_props: vk.PhysicalDeviceMemoryProperties
-    vk.GetPhysicalDeviceMemoryProperties(ctx.physical_device, &mem_props)
-    for i in 0..=mem_props.memoryTypeCount{
-        if(types_filter & (1 << i) != 0) && mem_props.memoryTypes[i].propertyFlags == mem_flags {
-            return cast(i32)i
-        }
-    }
-    return -1;
+find_memory_index :: proc(
+	ctx: ^Context,
+	types_filter: u32,
+	mem_flags: vk.MemoryPropertyFlags,
+) -> i32 {
+	mem_props: vk.PhysicalDeviceMemoryProperties
+	vk.GetPhysicalDeviceMemoryProperties(ctx.physical_device, &mem_props)
+	for i in 0 ..= mem_props.memoryTypeCount {
+		if (types_filter & (1 << i) != 0) &&
+		   mem_props.memoryTypes[i].propertyFlags == mem_flags {
+			return cast(i32)i
+		}
+	}
+	return -1
 }
 
-get_surface_capabilities :: proc(physical_device: vk.PhysicalDevice, surface: vk.SurfaceKHR) -> vk.SurfaceCapabilitiesKHR{
+get_surface_capabilities :: proc(
+	physical_device: vk.PhysicalDevice,
+	surface: vk.SurfaceKHR,
+) -> vk.SurfaceCapabilitiesKHR {
 	capabilities: vk.SurfaceCapabilitiesKHR
-	if res := vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities); res != .SUCCESS{
+	if res := vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+		physical_device,
+		surface,
+		&capabilities,
+	); res != .SUCCESS {
 		log.fatal("Failed to query physical device surface capabilites")
 		os.exit(1)
 	}
 	return capabilities
 }
+

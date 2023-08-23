@@ -42,9 +42,9 @@ main :: proc() {
 	rd.device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
 	ctx.swapchain = rd.swapchain_create(&ctx)
+    defer rd.swapchain_cleanup(&ctx)
     ctx.main_render_pass = rd.render_pass_create(&ctx, {0.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 800.0, 600.0}, 1.0, 0)
     defer rd.render_pass_destroy(&ctx, &ctx.main_render_pass)
-	rd.create_image_views(&ctx)
 	ctx.pipeline = rd.graphics_pipeline_create(
 		&ctx,
         &ctx.main_render_pass,

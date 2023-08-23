@@ -1,0 +1,13 @@
+{
+  "configurations": {
+    "launch": {
+      "adapter": "CodeLLDB",
+      "filetypes": [ "odin" ],
+      "configuration": {
+        "request": "launch",
+        "program": "${workspaceRoot}/bin/odin-renderer",
+        "cwd": "${workspaceRoot}/bin/"
+      }
+    }
+  }
+}

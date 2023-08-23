@@ -7,6 +7,11 @@ import vk "vendor:vulkan"
 // TODO: config
 render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Extent2D, depth: f32, stencil: u32) -> RenderPass {
 	out_render_pass: RenderPass
+    out_render_pass.stencil = stencil;
+    out_render_pass.depth = depth;
+    out_render_pass.color = color;
+    out_render_pass.extent = extent_window;
+
 	color_attachment: vk.AttachmentDescription
 	color_attachment.format = swapchain.format.format
 	color_attachment.samples = {._1}
@@ -16,26 +21,33 @@ render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Ext
 	color_attachment.stencilStoreOp = .DONT_CARE
 	color_attachment.initialLayout = .UNDEFINED
 	color_attachment.finalLayout = .PRESENT_SRC_KHR
+
 	color_attachment_ref: vk.AttachmentReference
 	color_attachment_ref.attachment = 0
 	color_attachment_ref.layout = .COLOR_ATTACHMENT_OPTIMAL
+
 	depth_attachment: vk.AttachmentDescription
+	depth_attachment.format = swapchain.depth_format 
+	depth_attachment.samples = {._1}
 	depth_attachment.loadOp = .CLEAR
 	depth_attachment.storeOp = .DONT_CARE
 	depth_attachment.stencilLoadOp = .DONT_CARE
 	depth_attachment.stencilStoreOp = .DONT_CARE
 	depth_attachment.initialLayout = .UNDEFINED
 	depth_attachment.finalLayout = .DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	depth_attachment.samples = {._1}
-	depth_attachment.format = .D32_SFLOAT_S8_UINT // TODO: note sure if this will work cuz previously I had a depth-attachment specific format
+
 	depth_attachment_ref: vk.AttachmentReference
 	depth_attachment_ref.attachment = 1
 	depth_attachment_ref.layout = .DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+
+
+    //TODO: other attachments
 	subpass: vk.SubpassDescription
 	subpass.pipelineBindPoint = .GRAPHICS
 	subpass.colorAttachmentCount = 1
 	subpass.pColorAttachments = &color_attachment_ref
 	subpass.pDepthStencilAttachment = &depth_attachment_ref
+    
 	dependency: vk.SubpassDependency
 	dependency.srcSubpass = vk.SUBPASS_EXTERNAL
 	dependency.dstSubpass = 0
@@ -43,16 +55,19 @@ render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Ext
 	dependency.srcAccessMask = {}
 	dependency.dstStageMask = {.COLOR_ATTACHMENT_OUTPUT}
 	dependency.dstAccessMask = {
-		.COLOR_ATTACHMENT_READ | .COLOR_ATTACHMENT_WRITE,
+		.COLOR_ATTACHMENT_READ, .COLOR_ATTACHMENT_WRITE
 	}
+
+    // TODO: other attachment types
 	attachments := [?]vk.AttachmentDescription{
 		color_attachment,
 		depth_attachment,
 	}
+
 	render_pass_info: vk.RenderPassCreateInfo
 	render_pass_info.sType = .RENDER_PASS_CREATE_INFO
 	render_pass_info.attachmentCount = 2
-	render_pass_info.pAttachments = raw_data(attachments[:])
+	render_pass_info.pAttachments = &attachments[0]
 	render_pass_info.subpassCount = 1
 	render_pass_info.pSubpasses = &subpass
 	render_pass_info.dependencyCount = 1
@@ -66,10 +81,6 @@ render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Ext
 		log.fatal("Error: Failed to create render pass!\n")
 		os.exit(1)
 	}
-    out_render_pass.stencil = stencil;
-    out_render_pass.depth = depth;
-    out_render_pass.color = color;
-    out_render_pass.extent = extent_window;
 	return out_render_pass
 }
 

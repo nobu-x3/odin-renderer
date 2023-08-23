@@ -78,22 +78,23 @@ Buffer :: struct {
 }
 
 Pipeline :: struct {
-	handle:      vk.Pipeline,
-	layout:      vk.PipelineLayout,
+	handle: vk.Pipeline,
+	layout: vk.PipelineLayout,
 }
 
 Swapchain :: struct {
-	handle:           vk.SwapchainKHR,
-	images:           []vk.Image,
-	image_views:      []vk.ImageView,
-	depth_attachment: Image,
-	format:           vk.SurfaceFormatKHR,
-	depth_format: vk.Format,
-	extent:           vk.Extent2D,
-	present_mode:     vk.PresentModeKHR,
-	image_count:      u32,
-	support:          SwapchainDescription,
-	framebuffers:     []vk.Framebuffer,
+	handle:               vk.SwapchainKHR,
+	images:               []vk.Image,
+	image_views:          []vk.ImageView,
+	depth_attachment:     Image,
+	format:               vk.SurfaceFormatKHR,
+	depth_format:         vk.Format,
+	extent:               vk.Extent2D,
+	present_mode:         vk.PresentModeKHR,
+	image_count:          u32,
+	support:              SwapchainDescription,
+	framebuffers:         []vk.Framebuffer,
+	max_frames_in_flight: u32,
 }
 
 RenderPass :: struct {
@@ -114,7 +115,7 @@ SwapchainDescription :: struct {
 	capabilities:  vk.SurfaceCapabilitiesKHR,
 	formats:       []vk.SurfaceFormatKHR,
 	present_modes: []vk.PresentModeKHR,
-	depth_format: vk.Format
+	depth_format:  vk.Format,
 }
 
 ImageInfo :: struct {

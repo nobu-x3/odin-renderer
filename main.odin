@@ -41,11 +41,11 @@ main :: proc() {
 	}
 	rd.device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
-	rd.swapchain_create(&ctx, &ctx.swapchain)
-    rd.render_pass_create(&ctx, {0.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 800.0, 600.0}, 1.0, 0, &ctx.main_render_pass)
+	ctx.swapchain = rd.swapchain_create(&ctx)
+    ctx.main_render_pass = rd.render_pass_create(&ctx, {0.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 800.0, 600.0}, 1.0, 0)
     defer rd.render_pass_destroy(&ctx, &ctx.main_render_pass)
 	rd.create_image_views(&ctx)
-	rd.graphics_pipeline_create(
+	ctx.pipeline = rd.graphics_pipeline_create(
 		&ctx,
         &ctx.main_render_pass,
         vk.Viewport{x = 0, y = 0, width = 800, height = 600, minDepth = 0, maxDepth = 1},

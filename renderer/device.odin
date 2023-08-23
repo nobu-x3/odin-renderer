@@ -57,7 +57,7 @@ device_get_suitable_device :: proc(using ctx: ^Context) {
 	devices := make([]vk.PhysicalDevice, device_count)
 	vk.EnumeratePhysicalDevices(instance, &device_count, raw_data(devices))
 	suitability :: proc(
-		using ctx: ^Context,
+		ctx: ^Context,
 		dev: vk.PhysicalDevice,
 	) -> int {
 		props: vk.PhysicalDeviceProperties
@@ -120,21 +120,22 @@ device_check_extension_support :: proc(
 device_query_swapchain_details :: proc(
 	using ctx: ^Context,
 	dev: vk.PhysicalDevice,
-) {
+) -> SwapchainDescription {
+	desc : SwapchainDescription
 	vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(
 		dev,
 		surface,
-		&swapchain.support.capabilities,
+		&desc.capabilities,
 	)
 	format_count: u32
 	vk.GetPhysicalDeviceSurfaceFormatsKHR(dev, surface, &format_count, nil)
 	if format_count > 0 {
-		swapchain.support.formats = make([]vk.SurfaceFormatKHR, format_count)
+		desc.formats = make([]vk.SurfaceFormatKHR, format_count)
 		vk.GetPhysicalDeviceSurfaceFormatsKHR(
 			dev,
 			surface,
 			&format_count,
-			raw_data(swapchain.support.formats),
+			raw_data(desc.formats),
 		)
 	}
 	present_mode_count: u32
@@ -145,7 +146,7 @@ device_query_swapchain_details :: proc(
 		nil,
 	)
 	if present_mode_count > 0 {
-		swapchain.support.present_modes = make(
+		desc.present_modes = make(
 			[]vk.PresentModeKHR,
 			present_mode_count,
 		)
@@ -153,9 +154,10 @@ device_query_swapchain_details :: proc(
 			dev,
 			surface,
 			&present_mode_count,
-			raw_data(swapchain.support.present_modes),
+			raw_data(desc.present_modes),
 		)
 	}
+	return desc
 }
 
 find_queue_families :: proc(using ctx: ^Context) {
@@ -204,3 +206,22 @@ device_find_memory_type :: proc(
 	os.exit(1)
 }
 
+find_memory_index :: proc(ctx: ^Context, types_filter : u32, mem_flags: vk.MemoryPropertyFlags) -> i32 {
+    mem_props: vk.PhysicalDeviceMemoryProperties
+    vk.GetPhysicalDeviceMemoryProperties(ctx.physical_device, &mem_props)
+    for i in 0..=mem_props.memoryTypeCount{
+        if(types_filter & (1 << i) != 0) && mem_props.memoryTypes[i].propertyFlags == mem_flags {
+            return cast(i32)i
+        }
+    }
+    return -1;
+}
+
+get_surface_capabilities :: proc(physical_device: vk.PhysicalDevice, surface: vk.SurfaceKHR) -> vk.SurfaceCapabilitiesKHR{
+	capabilities: vk.SurfaceCapabilitiesKHR
+	if res := vk.GetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities); res != .SUCCESS{
+		log.fatal("Failed to query physical device surface capabilites")
+		os.exit(1)
+	}
+	return capabilities
+}

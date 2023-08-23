@@ -5,7 +5,8 @@ import "core:os"
 import vk "vendor:vulkan"
 
 // TODO: config
-render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Extent2D, depth: f32, stencil: u32, out_render_pass: ^RenderPass) {
+render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Extent2D, depth: f32, stencil: u32) -> RenderPass {
+	out_render_pass: RenderPass
 	color_attachment: vk.AttachmentDescription
 	color_attachment.format = swapchain.format.format
 	color_attachment.samples = {._1}
@@ -69,6 +70,7 @@ render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Ext
     out_render_pass.depth = depth;
     out_render_pass.color = color;
     out_render_pass.extent = extent_window;
+	return out_render_pass
 }
 
 render_pass_destroy :: proc(using ctx: ^Context, render_pass: ^RenderPass) {

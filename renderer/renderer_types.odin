@@ -88,6 +88,7 @@ Swapchain :: struct {
 	image_views:      []vk.ImageView,
 	depth_attachment: Image,
 	format:           vk.SurfaceFormatKHR,
+	depth_format: vk.Format,
 	extent:           vk.Extent2D,
 	present_mode:     vk.PresentModeKHR,
 	image_count:      u32,
@@ -113,6 +114,7 @@ SwapchainDescription :: struct {
 	capabilities:  vk.SurfaceCapabilitiesKHR,
 	formats:       []vk.SurfaceFormatKHR,
 	present_modes: []vk.PresentModeKHR,
+	depth_format: vk.Format
 }
 
 ImageInfo :: struct {
@@ -121,7 +123,7 @@ ImageInfo :: struct {
 	format:            vk.Format,
 	tiling:            vk.ImageTiling,
 	usage_flags:       vk.ImageUsageFlags,
-	memory_glafs:      vk.MemoryPropertyFlags,
+	memory_flags:      vk.MemoryPropertyFlags,
 	view_aspect_flags: vk.ImageAspectFlags,
 	create_view:       bool,
 }

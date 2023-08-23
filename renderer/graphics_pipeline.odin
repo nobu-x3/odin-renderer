@@ -16,6 +16,7 @@ graphics_pipeline_create :: proc(
 	//	fs_code := compile_shader(fs_name, .FragmentShader)
 	vs_code, _ := os.read_entire_file(vs_name)
 	fs_code, _ := os.read_entire_file(fs_name)
+	out_pipeline : Pipeline
 	/*
 		vs_code, vs_ok := os.read_entire_file(vs_path);
 		fs_code, fs_ok := os.read_entire_file(fs_path);
@@ -151,7 +152,7 @@ graphics_pipeline_create :: proc(
 		device,
 		&pipeline_layout_info,
 		nil,
-		&pipeline.layout,
+		&out_pipeline.layout,
 	); res != .SUCCESS {
 		log.fatal("Error: Failed to create pipeline layout!\n")
 		os.exit(1)
@@ -168,8 +169,8 @@ graphics_pipeline_create :: proc(
 	pipeline_info.pDepthStencilState = &depth_stencil
 	pipeline_info.pColorBlendState = &color_blending
 	pipeline_info.pDynamicState = &dynamic_state
-	pipeline_info.layout = pipeline.layout
-	pipeline_info.renderPass = main_render_pass.handle
+	pipeline_info.layout = out_pipeline.layout
+	pipeline_info.renderPass = render_pass.handle
 	pipeline_info.subpass = 0
 	pipeline_info.basePipelineHandle = vk.Pipeline{}
 	pipeline_info.basePipelineIndex = -1
@@ -179,7 +180,7 @@ graphics_pipeline_create :: proc(
 		1,
 		&pipeline_info,
 		nil,
-		&pipeline.handle,
+		&out_pipeline.handle,
 	); res != .SUCCESS {
 		log.fatal("Error: Failed to create graphics pipeline!\n")
 		os.exit(1)

@@ -6,28 +6,31 @@ import vk "vendor:vulkan"
 import "vendor:glfw"
 
 
-swapchain_create :: proc(using ctx: ^Context, out_swapchain: ^Swapchain, width :u32 = 0, height :u32 =0) {
-	using ctx.swapchain.support
-	swapchain.format = choose_surface_format(ctx)
-	swapchain.present_mode = choose_present_mode(ctx)
+swapchain_create :: proc(using ctx: ^Context, width :u32 = 0, height :u32 =0) -> Swapchain {
+	out_swapchain : Swapchain
+	using out_swapchain.support
+	out_swapchain.support = device_query_swapchain_details(ctx, physical_device)
+	out_swapchain.format = choose_surface_format(&out_swapchain.support)
+	out_swapchain.depth_format = choose_depth_format(ctx)
+	out_swapchain.present_mode = choose_present_mode(&out_swapchain.support)
 	if width == 0 || height == 0{
-		swapchain.extent = choose_swap_extent(ctx)
+		out_swapchain.extent = choose_swap_extent(ctx, &out_swapchain.support)
 	}
 	else{
-		swapchain.extent = vk.Extent2D{width = width, height = height}
+		out_swapchain.extent = vk.Extent2D{width = width, height = height}
 	}
-	swapchain.image_count = capabilities.minImageCount + 1
-	if capabilities.maxImageCount > 0 &&
-	   swapchain.image_count > capabilities.maxImageCount {
-		swapchain.image_count = capabilities.maxImageCount
+	out_swapchain.image_count = out_swapchain.support.capabilities.minImageCount + 1
+	if out_swapchain.support.capabilities.maxImageCount > 0 &&
+	out_swapchain.image_count > out_swapchain.support.capabilities.maxImageCount {
+		out_swapchain.image_count = out_swapchain.support.capabilities.maxImageCount
 	}
 	create_info: vk.SwapchainCreateInfoKHR
 	create_info.sType = .SWAPCHAIN_CREATE_INFO_KHR
 	create_info.surface = surface
-	create_info.minImageCount = swapchain.image_count
-	create_info.imageFormat = swapchain.format.format
-	create_info.imageColorSpace = swapchain.format.colorSpace
-	create_info.imageExtent = swapchain.extent
+	create_info.minImageCount = out_swapchain.image_count
+	create_info.imageFormat = out_swapchain.format.format
+	create_info.imageColorSpace = out_swapchain.format.colorSpace
+	create_info.imageExtent = out_swapchain.extent
 	create_info.imageArrayLayers = 1
 	create_info.imageUsage = {.COLOR_ATTACHMENT}
 	queue_family_indices := [len(QueueFamily)]u32{
@@ -43,33 +46,65 @@ swapchain_create :: proc(using ctx: ^Context, out_swapchain: ^Swapchain, width :
 		create_info.queueFamilyIndexCount = 0
 		create_info.pQueueFamilyIndices = nil
 	}
-	create_info.preTransform = capabilities.currentTransform
+	create_info.preTransform = out_swapchain.support.capabilities.currentTransform
 	create_info.compositeAlpha = {.OPAQUE}
-	create_info.presentMode = swapchain.present_mode
+	create_info.presentMode = out_swapchain.present_mode
 	create_info.clipped = true
 	create_info.oldSwapchain = vk.SwapchainKHR{}
 	if res := vk.CreateSwapchainKHR(
 		device,
 		&create_info,
 		nil,
-		&swapchain.handle,
+		&out_swapchain.handle,
 	); res != .SUCCESS {
 		log.fatal("Error: failed to create swap chain!\n")
 		os.exit(1)
 	}
 	vk.GetSwapchainImagesKHR(
 		device,
-		swapchain.handle,
-		&swapchain.image_count,
+		out_swapchain.handle,
+		&out_swapchain.image_count,
 		nil,
 	)
-	swapchain.images = make([]vk.Image, swapchain.image_count)
+	out_swapchain.images = make([]vk.Image, out_swapchain.image_count)
 	vk.GetSwapchainImagesKHR(
 		device,
-		swapchain.handle,
-		&swapchain.image_count,
-		raw_data(swapchain.images),
+		out_swapchain.handle,
+		&out_swapchain.image_count,
+		raw_data(out_swapchain.images),
 	)
+	for i in 0..<out_swapchain.image_count{
+		view_ci : vk.ImageViewCreateInfo
+		view_ci.sType = .IMAGE_VIEW_CREATE_INFO
+		view_ci.viewType = .D2
+		view_ci.image = out_swapchain.images[i]
+		view_ci.format = out_swapchain.format.format
+		view_ci.subresourceRange.aspectMask = {.COLOR}
+		view_ci.subresourceRange.baseMipLevel = 0
+		view_ci.subresourceRange.levelCount = 1
+		view_ci.subresourceRange.baseArrayLayer = 0;
+		view_ci.subresourceRange.layerCount = 1;
+		if res := vk.CreateImageView(
+			device,
+			&view_ci,
+			nil,
+			&out_swapchain.image_views[i],
+		); res != .SUCCESS {
+			log.fatal("Error: failed to create swap chain image views!\n")
+			os.exit(1)
+		}
+	}
+	image_info : ImageInfo
+	image_info.width = out_swapchain.extent.width
+	image_info.height = out_swapchain.extent.height
+	image_info.format = out_swapchain.depth_format
+	image_info.tiling = .OPTIMAL
+	image_info.usage_flags = {.DEPTH_STENCIL_ATTACHMENT}
+	image_info.memory_flags = {.DEVICE_LOCAL}
+	image_info.create_view = true
+	image_info.view_aspect_flags = {.DEPTH}
+	out_swapchain.depth_attachment = image_create(ctx, &image_info)
+	return out_swapchain
 }
 
 swapchain_recreate :: proc(using ctx: ^Context) {
@@ -80,7 +115,7 @@ swapchain_recreate :: proc(using ctx: ^Context) {
 	}
 	vk.DeviceWaitIdle(device)
 	swapchain_cleanup(ctx)
-	swapchain_create(ctx, &ctx.swapchain)
+	ctx.swapchain = swapchain_create(ctx)
 	create_image_views(ctx)
 	create_framebuffers(ctx)
 }
@@ -151,13 +186,14 @@ create_framebuffers :: proc(using ctx: ^Context) {
 
 framebuffer_create :: proc(ctx: ^Context, render_pass: ^RenderPass, width, height: u32, attachments: []vk.ImageView, out_framebuffer: ^Framebuffer){
 	out_framebuffer.attachments = make([]vk.ImageView, len(attachments))
+	copy(out_framebuffer.attachments, attachments)
 	for v, i in attachments{
-		attach := [?]vk.ImageView{v}
+		out_framebuffer.attachments[i] = attachments[i]
 		framebuffer_info: vk.FramebufferCreateInfo
 		framebuffer_info.sType = .FRAMEBUFFER_CREATE_INFO
 		framebuffer_info.renderPass = render_pass.handle
-		framebuffer_info.attachmentCount = 1
-		framebuffer_info.pAttachments = &attachments[0]
+		framebuffer_info.attachmentCount = cast(u32)len(attachments)
+		framebuffer_info.pAttachments = &out_framebuffer.attachments[0]
 		framebuffer_info.width = width
 		framebuffer_info.height = height
 		framebuffer_info.layers = 1
@@ -180,37 +216,50 @@ framebuffer_size_callback :: proc "c" (
 	framebuffer_resized = true
 }
 
-choose_surface_format :: proc(
-	using ctx: ^Context,
-) -> vk.SurfaceFormatKHR {
-	for v in swapchain.support.formats {
-		if v.format == .B8G8R8A8_SRGB && v.colorSpace == .SRGB_NONLINEAR do return v
+choose_depth_format :: proc(using ctx: ^Context) -> vk.Format {
+	priorities := [?]vk.Format{.D32_SFLOAT, .D32_SFLOAT_S8_UINT, .D24_UNORM_S8_UINT}
+	flags := vk.FormatFeatureFlags.DEPTH_STENCIL_ATTACHMENT
+	for i in 0..<3{
+		props : vk.FormatProperties
+		vk.GetPhysicalDeviceFormatProperties(physical_device, priorities[i], &props)
+		if (props.linearTilingFeatures == {flags}) || (props.optimalTilingFeatures == {flags}){
+			return priorities[i];
+		} 
 	}
-	return swapchain.support.formats[0]
+	return vk.Format.UNDEFINED
 }
 
-choose_present_mode :: proc(using ctx: ^Context) -> vk.PresentModeKHR {
-	for v in swapchain.support.present_modes {
+choose_surface_format :: proc(
+	swapchain_desc: ^SwapchainDescription,
+) -> vk.SurfaceFormatKHR {
+	for v in swapchain_desc.formats {
+		if v.format == .B8G8R8A8_SRGB && v.colorSpace == .SRGB_NONLINEAR do return v
+	}
+	return swapchain_desc.formats[0]
+}
+
+choose_present_mode :: proc(swapchain_desc: ^SwapchainDescription) -> vk.PresentModeKHR {
+	for v in swapchain_desc.present_modes {
 		if v == .MAILBOX do return v
 	}
 	return .FIFO
 }
 
-choose_swap_extent :: proc(using ctx: ^Context) -> vk.Extent2D {
-	if (swapchain.support.capabilities.currentExtent.width != max(u32)) {
-		return swapchain.support.capabilities.currentExtent
+choose_swap_extent :: proc(ctx : ^Context, swapchain_desc: ^SwapchainDescription) -> vk.Extent2D {
+	if (swapchain_desc.capabilities.currentExtent.width != max(u32)) {
+		return swapchain_desc.capabilities.currentExtent
 	} else {
-		width, height := glfw.GetFramebufferSize(window)
+		width, height := glfw.GetFramebufferSize(ctx.window)
 		extent := vk.Extent2D{u32(width), u32(height)}
 		extent.width = clamp(
 			extent.width,
-			swapchain.support.capabilities.minImageExtent.width,
-			swapchain.support.capabilities.maxImageExtent.width,
+			swapchain_desc.capabilities.minImageExtent.width,
+			swapchain_desc.capabilities.maxImageExtent.width,
 		)
 		extent.height = clamp(
 			extent.height,
-			swapchain.support.capabilities.minImageExtent.height,
-			swapchain.support.capabilities.maxImageExtent.height,
+			swapchain_desc.capabilities.minImageExtent.height,
+			swapchain_desc.capabilities.maxImageExtent.height,
 		)
 		return extent
 	}

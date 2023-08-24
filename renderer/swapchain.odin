@@ -8,10 +8,10 @@ import "vendor:glfw"
 
 swapchain_create :: proc(
 	using ctx: ^Context,
+	out_swapchain: ^Swapchain,
 	width: u32 = 0,
 	height: u32 = 0,
-) -> Swapchain {
-	out_swapchain: Swapchain
+) {
 	using out_swapchain.support
 	out_swapchain.support = device_query_swapchain_details(
 		ctx,
@@ -129,7 +129,30 @@ swapchain_create :: proc(
 	image_info.view_aspect_flags = {.DEPTH}
 	out_swapchain.depth_attachment = image_create(ctx, &image_info)
 	log.info("Swapchain depth attachment created.")
-	return out_swapchain
+}
+
+swapchain_acquire_next_image_index :: proc(
+	ctx: ^Context,
+	swapchain: ^Swapchain,
+	semaphore: vk.Semaphore,
+	fence: vk.Fence,
+	timeout_ns: u64,
+	out_image_index: ^u32,
+) {
+	res := vk.AcquireNextImageKHR(
+		ctx.device,
+		swapchain.handle,
+		timeout_ns,
+		semaphore,
+		fence,
+		out_image_index,
+	)
+	if (res == .ERROR_OUT_OF_DATE_KHR) {
+		swapchain_recreate(ctx)
+	} else if (res != .SUCCESS && res == .SUBOPTIMAL_KHR) {
+		log.fatal("Failed to acquire the next image index.")
+		os.exit(1)
+	}
 }
 
 swapchain_recreate :: proc(using ctx: ^Context) {
@@ -140,7 +163,7 @@ swapchain_recreate :: proc(using ctx: ^Context) {
 	}
 	vk.DeviceWaitIdle(device)
 	swapchain_cleanup(ctx)
-	ctx.swapchain = swapchain_create(ctx)
+	swapchain_create(ctx, &ctx.swapchain)
 	create_image_views(ctx)
 	recreate_framebuffers(ctx, &ctx.swapchain, &ctx.main_render_pass)
 }
@@ -248,4 +271,3 @@ choose_swap_extent :: proc(
 		return extent
 	}
 }
-

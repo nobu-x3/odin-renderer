@@ -41,23 +41,47 @@ main :: proc() {
 	}
 	rd.device_create(&ctx)
 	defer vk.DestroyDevice(ctx.device, nil)
-	ctx.swapchain = rd.swapchain_create(&ctx)
-    defer rd.swapchain_cleanup(&ctx)
-    ctx.main_render_pass = rd.render_pass_create(&ctx, {0.0, 0.0, 0.0, 1.0}, {0.0, 0.0, 800.0, 600.0}, 1.0, 0)
-    defer rd.render_pass_destroy(&ctx, &ctx.main_render_pass)
-	ctx.pipeline = rd.graphics_pipeline_create(
+	rd.command_pool_create(&ctx)
+	defer vk.DestroyCommandPool(ctx.device, ctx.command_pool, nil)
+	rd.swapchain_create(&ctx, &ctx.swapchain)
+	defer rd.swapchain_cleanup(&ctx)
+	rd.render_pass_create(
 		&ctx,
-        &ctx.main_render_pass,
-        vk.Viewport{x = 0, y = 0, width = 800, height = 600, minDepth = 0, maxDepth = 1},
-        vk.Rect2D{},
+		{0.0, 0.0, 0.0, 1.0},
+		{0.0, 0.0, 800.0, 600.0},
+		1.0,
+		0,
+		&ctx.main_render_pass,
+	)
+	defer rd.render_pass_destroy(&ctx, &ctx.main_render_pass)
+	rd.graphics_pipeline_create(
+		&ctx,
+		&ctx.main_render_pass,
+		vk.Viewport{
+			x = 0,
+			y = 0,
+			width = 800,
+			height = 600,
+			minDepth = 0,
+			maxDepth = 1,
+		},
+		vk.Rect2D{},
 		"bin/assets/shaders/shader_builtin.vert.spv",
 		"bin/assets/shaders/shader_builtin.frag.spv",
+		&ctx.pipeline,
 	)
 	defer vk.DestroyPipelineLayout(ctx.device, ctx.pipeline.layout, nil)
 	defer vk.DestroyPipeline(ctx.device, ctx.pipeline.handle, nil)
 	rd.recreate_framebuffers(&ctx, &ctx.swapchain, &ctx.main_render_pass)
-	rd.command_pool_create(&ctx)
-	defer vk.DestroyCommandPool(ctx.device, ctx.command_pool, nil)
+	create_command_buffers(&ctx)
+	create_sync_objects(&ctx)
+	defer {
+		for i in 0 ..< rd.MAX_FRAMES_IN_FLIGHT {
+			vk.DestroySemaphore(ctx.device, ctx.image_available[i], nil)
+			vk.DestroySemaphore(ctx.device, ctx.render_finished[i], nil)
+			vk.DestroyFence(ctx.device, ctx.in_flight[i], nil)
+		}
+	}
 	vertices := [?]rd.Vertex{
 		{{-0.5, -0.5}, {0.0, 0.0, 1.0}},
 		{{0.5, -0.5}, {1.0, 0.0, 0.0}},
@@ -71,22 +95,49 @@ main :: proc() {
 	rd.index_buffer_create(&ctx, indices[:])
 	defer vk.DestroyBuffer(ctx.device, ctx.index_buffer.buffer, nil)
 	defer vk.FreeMemory(ctx.device, ctx.index_buffer.memory, nil)
-	rd.command_buffer_create(&ctx)
-	defer rd.swapchain_cleanup(&ctx)
-	create_sync_objects(&ctx)
-	defer {
-		for i in 0 ..< rd.MAX_FRAMES_IN_FLIGHT {
-			vk.DestroySemaphore(ctx.device, ctx.image_available[i], nil)
-			vk.DestroySemaphore(ctx.device, ctx.render_finished[i], nil)
-			vk.DestroyFence(ctx.device, ctx.in_flight[i], nil)
-
-		}
-	}
 	for (!glfw.WindowShouldClose(ctx.window)) {
 		glfw.PollEvents()
 		draw_frame(&ctx, vertices[:], indices[:])
 	}
 	vk.DeviceWaitIdle(ctx.device)
+}
+
+create_command_buffers :: proc(ctx: ^rd.Context) {
+	for i in 0 ..< len(ctx.command_buffers) {
+		if ctx.command_buffers[i] != nil {
+			rd.command_buffer_destroy(
+				ctx,
+				ctx.command_pool,
+				&ctx.command_buffers[i],
+			)
+		}
+		rd.command_buffer_create(
+			ctx,
+			ctx.command_pool,
+			&ctx.command_buffers[i],
+		)
+	}
+	log.info("Command buffers created.")
+}
+
+begin_frame :: proc(ctx: ^rd.Context, delta_time: f64) {
+	// TODO: handle resizing
+
+	vk.WaitForFences(
+		ctx.device,
+		1,
+		&ctx.in_flight[ctx.curr_frame],
+		true,
+		max(u64),
+	)
+	rd.swapchain_acquire_next_image_index(
+		ctx,
+		&ctx.swapchain,
+		ctx.image_available[ctx.curr_frame],
+		{},
+        max(u64),
+		&ctx.curr_frame,
+	) // TODO: if doesn't work, do image index instead of curr_frame
 }
 
 draw_frame :: proc(
@@ -183,7 +234,11 @@ record_command_buffer :: proc(
 	vk.CmdSetScissor(buffer, 0, 1, &scissor)
 	vk.CmdDrawIndexed(buffer, cast(u32)index_buffer.length, 1, 0, 0, 0)
 	vk.CmdEndRenderPass(buffer)
-    rd.render_pass_begin(&main_render_pass, buffer, swapchain.framebuffers[curr_frame].handle)
+	rd.render_pass_begin(
+		&main_render_pass,
+		buffer,
+		swapchain.framebuffers[curr_frame].handle,
+	)
 	if res := vk.EndCommandBuffer(buffer); res != .SUCCESS {
 		log.fatal("Error: Failed to record command buffer!\n")
 		os.exit(1)

@@ -5,8 +5,7 @@ import "core:os"
 import vk "vendor:vulkan"
 
 // TODO: config
-render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Extent2D, depth: f32, stencil: u32) -> RenderPass {
-	out_render_pass: RenderPass
+render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Extent2D, depth: f32, stencil: u32, out_render_pass: ^RenderPass) {
     out_render_pass.stencil = stencil;
     out_render_pass.depth = depth;
     out_render_pass.color = color;
@@ -81,7 +80,6 @@ render_pass_create :: proc(using ctx: ^Context, color: Color, extent_window: Ext
 		log.fatal("Error: Failed to create render pass!\n")
 		os.exit(1)
 	}
-	return out_render_pass
 }
 
 render_pass_destroy :: proc(using ctx: ^Context, render_pass: ^RenderPass) {

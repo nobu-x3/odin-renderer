@@ -11,12 +11,12 @@ graphics_pipeline_create :: proc(
 	scissor: vk.Rect2D,
 	vs_name: string,
 	fs_name: string,
-) -> Pipeline {
+    out_pipeline: ^Pipeline
+) {
 	//	vs_code := compile_shader(vs_name, .VertexShader)
 	//	fs_code := compile_shader(fs_name, .FragmentShader)
 	vs_code, _ := os.read_entire_file(vs_name)
 	fs_code, _ := os.read_entire_file(fs_name)
-	out_pipeline : Pipeline
 	/*
 		vs_code, vs_ok := os.read_entire_file(vs_path);
 		fs_code, fs_ok := os.read_entire_file(fs_path);
@@ -185,7 +185,6 @@ graphics_pipeline_create :: proc(
 		log.fatal("Error: Failed to create graphics pipeline!\n")
 		os.exit(1)
 	}
-    return pipeline;
 }
 
 /*compile_shader :: proc(name: string, kind: shaderc.shaderKind) -> []u8 {

@@ -142,12 +142,12 @@ swapchain_recreate :: proc(using ctx: ^Context) {
 	swapchain_cleanup(ctx)
 	ctx.swapchain = swapchain_create(ctx)
 	create_image_views(ctx)
-	create_framebuffers(ctx)
+	recreate_framebuffers(ctx, &ctx.swapchain, &ctx.main_render_pass)
 }
 
 swapchain_cleanup :: proc(using ctx: ^Context) {
 	for f in swapchain.framebuffers {
-		vk.DestroyFramebuffer(device, f, nil)
+		vk.DestroyFramebuffer(device, f.handle, nil)
 	}
 	for view in swapchain.image_views {
 		vk.DestroyImageView(device, view, nil)
@@ -183,73 +183,6 @@ create_image_views :: proc(using ctx: ^Context) {
 			os.exit(1)
 		}
 	}
-}
-
-create_framebuffers :: proc(using ctx: ^Context) {
-	swapchain.framebuffers = make([]vk.Framebuffer, len(swapchain.image_views))
-	for v, i in swapchain.image_views {
-		attachments := [?]vk.ImageView{v}
-		framebuffer_info: vk.FramebufferCreateInfo
-		framebuffer_info.sType = .FRAMEBUFFER_CREATE_INFO
-		framebuffer_info.renderPass = main_render_pass.handle
-		framebuffer_info.attachmentCount = 1
-		framebuffer_info.pAttachments = &attachments[0]
-		framebuffer_info.width = swapchain.extent.width
-		framebuffer_info.height = swapchain.extent.height
-		framebuffer_info.layers = 1
-		if res := vk.CreateFramebuffer(
-			device,
-			&framebuffer_info,
-			nil,
-			&swapchain.framebuffers[i],
-		); res != .SUCCESS {
-			log.fatal("Error: Failed to create framebuffer #%d!\n", i)
-			os.exit(1)
-		}
-	}
-}
-
-framebuffer_create :: proc(
-	ctx: ^Context,
-	render_pass: ^RenderPass,
-	width, height: u32,
-	attachments: []vk.ImageView,
-	out_framebuffer: ^Framebuffer,
-) {
-	out_framebuffer.attachments = make([]vk.ImageView, len(attachments))
-	copy(out_framebuffer.attachments, attachments)
-	for v, i in attachments {
-		out_framebuffer.attachments[i] = attachments[i]
-		framebuffer_info: vk.FramebufferCreateInfo
-		framebuffer_info.sType = .FRAMEBUFFER_CREATE_INFO
-		framebuffer_info.renderPass = render_pass.handle
-		framebuffer_info.attachmentCount = cast(u32)len(attachments)
-		framebuffer_info.pAttachments = &out_framebuffer.attachments[0]
-		framebuffer_info.width = width
-		framebuffer_info.height = height
-		framebuffer_info.layers = 1
-		if res := vk.CreateFramebuffer(
-			ctx.device,
-			&framebuffer_info,
-			nil,
-			&out_framebuffer.handle,
-		); res != .SUCCESS {
-			log.fatal("Error: Failed to create framebuffer #%d!\n", i)
-			os.exit(1)
-		}
-	}
-}
-
-framebuffer_destroy :: proc(ctx: ^Context, framebuffer: ^Framebuffer) {
-
-}
-
-framebuffer_size_callback :: proc "c" (
-	window: glfw.WindowHandle,
-	width, height: i32,
-) {
-	using ctx := cast(^Context)glfw.GetWindowUserPointer(window)
-	framebuffer_resized = true
 }
 
 choose_depth_format :: proc(using ctx: ^Context) -> vk.Format {

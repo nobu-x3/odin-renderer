@@ -93,7 +93,7 @@ Swapchain :: struct {
 	present_mode:         vk.PresentModeKHR,
 	image_count:          u32,
 	support:              SwapchainDescription,
-	framebuffers:         []vk.Framebuffer,
+	framebuffers:         []Framebuffer,
 	max_frames_in_flight: u32,
 }
 

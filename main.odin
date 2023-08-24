@@ -55,7 +55,7 @@ main :: proc() {
 	)
 	defer vk.DestroyPipelineLayout(ctx.device, ctx.pipeline.layout, nil)
 	defer vk.DestroyPipeline(ctx.device, ctx.pipeline.handle, nil)
-	rd.create_framebuffers(&ctx)
+	rd.recreate_framebuffers(&ctx, &ctx.swapchain, &ctx.main_render_pass)
 	rd.command_pool_create(&ctx)
 	defer vk.DestroyCommandPool(ctx.device, ctx.command_pool, nil)
 	vertices := [?]rd.Vertex{
@@ -183,7 +183,7 @@ record_command_buffer :: proc(
 	vk.CmdSetScissor(buffer, 0, 1, &scissor)
 	vk.CmdDrawIndexed(buffer, cast(u32)index_buffer.length, 1, 0, 0, 0)
 	vk.CmdEndRenderPass(buffer)
-    rd.render_pass_begin(&main_render_pass, buffer, swapchain.framebuffers[curr_frame])
+    rd.render_pass_begin(&main_render_pass, buffer, swapchain.framebuffers[curr_frame].handle)
 	if res := vk.EndCommandBuffer(buffer); res != .SUCCESS {
 		log.fatal("Error: Failed to record command buffer!\n")
 		os.exit(1)

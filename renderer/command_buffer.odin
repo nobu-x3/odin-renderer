@@ -66,6 +66,7 @@ command_buffer_begin :: proc(
 		log.fatal("Failed to begin command buffer.")
 		os.exit(1)
 	}
+    log.info("start")
 }
 
 command_buffer_end :: proc(command_buffer: vk.CommandBuffer) {

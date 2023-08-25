@@ -6,7 +6,7 @@
       "configuration": {
         "request": "launch",
         "program": "${workspaceRoot}/bin/odin-renderer",
-        "cwd": "${workspaceRoot}/bin/"
+        "cwd": "${workspaceRoot}/bin"
       }
     }
   }

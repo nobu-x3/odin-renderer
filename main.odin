@@ -97,15 +97,16 @@ main :: proc() {
 	defer vk.FreeMemory(ctx.device, ctx.index_buffer.memory, nil)
 	for (!glfw.WindowShouldClose(ctx.window)) {
 		glfw.PollEvents()
-        begin_frame(&ctx, 0)
+		begin_frame(&ctx, 0)
 		draw_frame(&ctx, vertices[:], indices[:])
-        end_frame(&ctx)
+		end_frame(&ctx)
+        log.info("Finished")
 	}
 	vk.DeviceWaitIdle(ctx.device)
 }
 
 create_command_buffers :: proc(ctx: ^rd.Context) {
-	for i in 0 ..< len(ctx.command_buffers) {
+	for i in 0 ..< ctx.swapchain.max_frames_in_flight {
 		if ctx.command_buffers[i] != nil {
 			rd.command_buffer_destroy(
 				ctx,
@@ -138,9 +139,8 @@ begin_frame :: proc(ctx: ^rd.Context, delta_time: f64) {
 		{},
 		max(u64),
 		&ctx.image_index,
-	) // TODO: if doesn't work, do image index instead of curr_frame
-	command_buffer := &ctx.command_buffers[ctx.image_index]
-	rd.command_buffer_begin(command_buffer^, {})
+	)
+	rd.command_buffer_begin(ctx.command_buffers[ctx.image_index], {})
 	viewport: vk.Viewport = {
 		x        = 0,
 		y        = 0, // maybe framebuffer height
@@ -156,15 +156,15 @@ begin_frame :: proc(ctx: ^rd.Context, delta_time: f64) {
 			height = ctx.swapchain.extent.height,
 		},
 	}
-	vk.CmdSetViewport(command_buffer^, 0, 1, &viewport)
-	vk.CmdSetScissor(command_buffer^, 0, 1, &scissor)
+	vk.CmdSetViewport(ctx.command_buffers[ctx.image_index], 0, 1, &viewport)
+	vk.CmdSetScissor(ctx.command_buffers[ctx.image_index], 0, 1, &scissor)
 	ctx.main_render_pass.extent = {
 		w = cast(f32)ctx.swapchain.extent.width,
 		h = cast(f32)ctx.swapchain.extent.height,
 	}
 	rd.render_pass_begin(
 		&ctx.main_render_pass,
-		command_buffer^,
+		ctx.command_buffers[ctx.image_index],
 		ctx.swapchain.framebuffers[ctx.image_index].handle,
 	)
 }
@@ -209,7 +209,13 @@ end_frame :: proc(ctx: ^rd.Context) {
 		log.fatal("Error: Failed to submit draw command buffer!\n")
 		os.exit(1)
 	}
-    rd.swapchain_present(ctx, &ctx.swapchain, ctx.queues[.Present], ctx.render_finished[ctx.curr_frame], ctx.image_index)
+	rd.swapchain_present(
+		ctx,
+		&ctx.swapchain,
+		ctx.queues[.Present],
+		ctx.render_finished[ctx.curr_frame],
+		ctx.image_index,
+	)
 }
 
 draw_frame :: proc(
@@ -217,7 +223,7 @@ draw_frame :: proc(
 	vertices: []rd.Vertex,
 	indices: []u16,
 ) {
-	record_command_buffer(ctx, command_buffers[curr_frame], image_index)
+	record_command_buffer(ctx, command_buffers[image_index], image_index)
 }
 
 record_command_buffer :: proc(

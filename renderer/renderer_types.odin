@@ -5,7 +5,7 @@ import "core:os"
 import vk "vendor:vulkan"
 import "vendor:glfw"
 
-MAX_FRAMES_IN_FLIGHT :: 2
+MAX_FRAMES_IN_FLIGHT :: 3
 DEVICE_EXTENSIONS := [?]cstring{"VK_KHR_swapchain"}
 VALIDATION_LAYERS := [?]cstring{"VK_LAYER_KHRONOS_validation"}
 

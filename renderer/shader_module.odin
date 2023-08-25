@@ -18,6 +18,7 @@ shader_module_create :: proc(
 		log.fatal("Error: Could not create shader module!\n")
 		os.exit(1)
 	}
+    log.info("Shader module created.")
 	return shader
 }
 

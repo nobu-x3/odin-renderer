@@ -97,7 +97,9 @@ main :: proc() {
 	defer vk.FreeMemory(ctx.device, ctx.index_buffer.memory, nil)
 	for (!glfw.WindowShouldClose(ctx.window)) {
 		glfw.PollEvents()
+        begin_frame(&ctx, 0)
 		draw_frame(&ctx, vertices[:], indices[:])
+        end_frame(&ctx)
 	}
 	vk.DeviceWaitIdle(ctx.device)
 }
@@ -122,7 +124,6 @@ create_command_buffers :: proc(ctx: ^rd.Context) {
 
 begin_frame :: proc(ctx: ^rd.Context, delta_time: f64) {
 	// TODO: handle resizing
-
 	vk.WaitForFences(
 		ctx.device,
 		1,
@@ -135,9 +136,80 @@ begin_frame :: proc(ctx: ^rd.Context, delta_time: f64) {
 		&ctx.swapchain,
 		ctx.image_available[ctx.curr_frame],
 		{},
-        max(u64),
-		&ctx.curr_frame,
+		max(u64),
+		&ctx.image_index,
 	) // TODO: if doesn't work, do image index instead of curr_frame
+	command_buffer := &ctx.command_buffers[ctx.image_index]
+	rd.command_buffer_begin(command_buffer^, {})
+	viewport: vk.Viewport = {
+		x        = 0,
+		y        = 0, // maybe framebuffer height
+		width    = cast(f32)ctx.swapchain.extent.width,
+		height   = cast(f32)ctx.swapchain.extent.height,
+		minDepth = 0,
+		maxDepth = 1,
+	}
+	scissor: vk.Rect2D = {
+		offset = {x = 0, y = 0},
+		extent = {
+			width = ctx.swapchain.extent.width,
+			height = ctx.swapchain.extent.height,
+		},
+	}
+	vk.CmdSetViewport(command_buffer^, 0, 1, &viewport)
+	vk.CmdSetScissor(command_buffer^, 0, 1, &scissor)
+	ctx.main_render_pass.extent = {
+		w = cast(f32)ctx.swapchain.extent.width,
+		h = cast(f32)ctx.swapchain.extent.height,
+	}
+	rd.render_pass_begin(
+		&ctx.main_render_pass,
+		command_buffer^,
+		ctx.swapchain.framebuffers[ctx.image_index].handle,
+	)
+}
+
+end_frame :: proc(ctx: ^rd.Context) {
+	rd.render_pass_end(
+		&ctx.main_render_pass,
+		ctx.command_buffers[ctx.image_index],
+	)
+	rd.command_buffer_end(ctx.command_buffers[ctx.image_index])
+	if ctx.in_flight[ctx.image_index] != {} {
+		vk.WaitForFences(
+			ctx.device,
+			1,
+			&ctx.in_flight[ctx.image_index],
+			true,
+			max(u64),
+		)
+	}
+	ctx.in_flight[ctx.image_index] = ctx.in_flight[ctx.curr_frame]
+	if res := vk.ResetFences(ctx.device, 1, &ctx.in_flight[ctx.curr_frame]);
+	   res != .SUCCESS {
+		log.fatal("Failed to reset fence.")
+		os.exit(1)
+	}
+	submit_info: vk.SubmitInfo
+	submit_info.sType = .SUBMIT_INFO
+	submit_info.commandBufferCount = 1
+	submit_info.pCommandBuffers = &ctx.command_buffers[ctx.image_index]
+	submit_info.signalSemaphoreCount = 1
+	submit_info.pSignalSemaphores = &ctx.render_finished[ctx.curr_frame]
+	submit_info.waitSemaphoreCount = 1
+	submit_info.pWaitSemaphores = &ctx.image_available[ctx.curr_frame]
+	wait_stages := [?]vk.PipelineStageFlags{{.COLOR_ATTACHMENT_OUTPUT}}
+	submit_info.pWaitDstStageMask = &wait_stages[0]
+	if res := vk.QueueSubmit(
+		ctx.queues[.Graphics],
+		1,
+		&submit_info,
+		ctx.in_flight[ctx.curr_frame],
+	); res != .SUCCESS {
+		log.fatal("Error: Failed to submit draw command buffer!\n")
+		os.exit(1)
+	}
+    rd.swapchain_present(ctx, &ctx.swapchain, ctx.queues[.Present], ctx.render_finished[ctx.curr_frame], ctx.image_index)
 }
 
 draw_frame :: proc(
@@ -145,104 +217,20 @@ draw_frame :: proc(
 	vertices: []rd.Vertex,
 	indices: []u16,
 ) {
-	vk.WaitForFences(device, 1, &in_flight[curr_frame], true, max(u64))
-	image_index: u32
-	res := vk.AcquireNextImageKHR(
-		device,
-		swapchain.handle,
-		max(u64),
-		image_available[curr_frame],
-		{},
-		&image_index,
-	)
-	if res == .ERROR_OUT_OF_DATE_KHR ||
-	   res == .SUBOPTIMAL_KHR ||
-	   framebuffer_resized {
-		framebuffer_resized = false
-		rd.swapchain_recreate(ctx)
-		return
-	} else if res != .SUCCESS {
-		log.fatal("Error: Failed tp acquire swap chain image!\n")
-		os.exit(1)
-	}
-	vk.ResetFences(device, 1, &in_flight[curr_frame])
-	vk.ResetCommandBuffer(command_buffers[curr_frame], {})
 	record_command_buffer(ctx, command_buffers[curr_frame], image_index)
-	submit_info: vk.SubmitInfo
-	submit_info.sType = .SUBMIT_INFO
-	wait_semaphores := [?]vk.Semaphore{image_available[curr_frame]}
-	wait_stages := [?]vk.PipelineStageFlags{{.COLOR_ATTACHMENT_OUTPUT}}
-	submit_info.waitSemaphoreCount = 1
-	submit_info.pWaitSemaphores = &wait_semaphores[0]
-	submit_info.pWaitDstStageMask = &wait_stages[0]
-	submit_info.commandBufferCount = 1
-	submit_info.pCommandBuffers = &command_buffers[curr_frame]
-	signal_semaphores := [?]vk.Semaphore{render_finished[curr_frame]}
-	submit_info.signalSemaphoreCount = 1
-	submit_info.pSignalSemaphores = &signal_semaphores[0]
-	if res := vk.QueueSubmit(
-		queues[.Graphics],
-		1,
-		&submit_info,
-		in_flight[curr_frame],
-	); res != .SUCCESS {
-		log.fatal("Error: Failed to submit draw command buffer!\n")
-		os.exit(1)
-	}
-	present_info: vk.PresentInfoKHR
-	present_info.sType = .PRESENT_INFO_KHR
-	present_info.waitSemaphoreCount = 1
-	present_info.pWaitSemaphores = &signal_semaphores[0]
-	swapchains := [?]vk.SwapchainKHR{swapchain.handle}
-	present_info.swapchainCount = 1
-	present_info.pSwapchains = &swapchains[0]
-	present_info.pImageIndices = &image_index
-	present_info.pResults = nil
-	vk.QueuePresentKHR(queues[.Present], &present_info)
-	curr_frame = (curr_frame + 1) % rd.MAX_FRAMES_IN_FLIGHT
 }
 
 record_command_buffer :: proc(
-	using ctx: ^rd.Context,
+	ctx: ^rd.Context,
 	buffer: vk.CommandBuffer,
 	image_index: u32,
 ) {
-	begin_info: vk.CommandBufferBeginInfo
-	begin_info.sType = .COMMAND_BUFFER_BEGIN_INFO
-	begin_info.flags = {}
-	begin_info.pInheritanceInfo = nil
-	if res := vk.BeginCommandBuffer(buffer, &begin_info); res != .SUCCESS {
-		log.fatal("Error: Failed to begin recording command buffer!\n")
-		os.exit(1)
-	}
-	vk.CmdBindPipeline(buffer, .GRAPHICS, pipeline.handle)
-	vertex_buffers := [?]vk.Buffer{vertex_buffer.buffer}
+	vk.CmdBindPipeline(buffer, .GRAPHICS, ctx.pipeline.handle)
+	vertex_buffers := [?]vk.Buffer{ctx.vertex_buffer.buffer}
 	offsets := [?]vk.DeviceSize{0}
 	vk.CmdBindVertexBuffers(buffer, 0, 1, &vertex_buffers[0], &offsets[0])
-	vk.CmdBindIndexBuffer(buffer, index_buffer.buffer, 0, .UINT16)
-	viewport: vk.Viewport
-	viewport.x = 0.0
-	viewport.y = 0.0
-	viewport.width = f32(swapchain.extent.width)
-	viewport.height = f32(swapchain.extent.height)
-	viewport.minDepth = 0.0
-	viewport.maxDepth = 1.0
-	vk.CmdSetViewport(buffer, 0, 1, &viewport)
-	scissor: vk.Rect2D
-	scissor.offset = {0, 0}
-	scissor.extent = swapchain.extent
-	vk.CmdSetScissor(buffer, 0, 1, &scissor)
-	vk.CmdDrawIndexed(buffer, cast(u32)index_buffer.length, 1, 0, 0, 0)
-	vk.CmdEndRenderPass(buffer)
-	rd.render_pass_begin(
-		&main_render_pass,
-		buffer,
-		swapchain.framebuffers[curr_frame].handle,
-	)
-	if res := vk.EndCommandBuffer(buffer); res != .SUCCESS {
-		log.fatal("Error: Failed to record command buffer!\n")
-		os.exit(1)
-	}
+	vk.CmdBindIndexBuffer(buffer, ctx.index_buffer.buffer, 0, .UINT16)
+	vk.CmdDrawIndexed(buffer, cast(u32)ctx.index_buffer.length, 1, 0, 0, 0)
 }
 
 create_instance :: proc(ctx: ^rd.Context) {

@@ -178,6 +178,26 @@ swapchain_cleanup :: proc(using ctx: ^Context) {
 	vk.DestroySwapchainKHR(device, swapchain.handle, nil)
 }
 
+swapchain_present :: proc(ctx: ^Context, swapchain: ^Swapchain, queue: vk.Queue, render_complete_sem: vk.Semaphore, preset_image_index: u32){
+    render_complete_sem := render_complete_sem
+    preset_image_index := preset_image_index
+    present_info:vk.PresentInfoKHR
+    present_info.sType = .PRESENT_INFO_KHR
+    present_info.swapchainCount = 1
+    present_info.pSwapchains = &swapchain.handle
+    present_info.waitSemaphoreCount = 1
+    present_info.pWaitSemaphores = &render_complete_sem
+    present_info.pImageIndices = &preset_image_index
+    res := vk.QueuePresentKHR(queue, &present_info)
+    if res == .ERROR_OUT_OF_DATE_KHR || res == .SUBOPTIMAL_KHR{
+        swapchain_recreate(ctx)
+    }
+    else if res != .SUCCESS{
+        log.error("Failed to present swapchain image.")
+    }
+    ctx.curr_frame = (ctx.curr_frame + 1) % swapchain.max_frames_in_flight
+}
+
 create_image_views :: proc(using ctx: ^Context) {
 	using ctx.swapchain
 	image_views = make([]vk.ImageView, len(images))

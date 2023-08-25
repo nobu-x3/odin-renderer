@@ -112,7 +112,11 @@ render_pass_begin :: proc(
 	clear_vals[0].color.float32[3] = render_pass.color.a
 	clear_vals[1].depthStencil.depth = render_pass.depth
 	clear_vals[1].depthStencil.stencil = render_pass.stencil
-	render_pass_info.clearValueCount = 1
+	render_pass_info.clearValueCount = 2
 	render_pass_info.pClearValues = raw_data(&clear_vals)
 	vk.CmdBeginRenderPass(command_buffer, &render_pass_info, .INLINE)
+}
+
+render_pass_end :: proc(render_pass: ^RenderPass, command_buffer: vk.CommandBuffer){
+    vk.CmdEndRenderPass(command_buffer)
 }

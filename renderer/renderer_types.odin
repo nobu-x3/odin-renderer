@@ -67,6 +67,7 @@ Context :: struct {
 	render_finished:     [MAX_FRAMES_IN_FLIGHT]vk.Semaphore,
 	in_flight:           [MAX_FRAMES_IN_FLIGHT]vk.Fence,
 	curr_frame:          u32,
+	image_index:         u32,
 	framebuffer_resized: bool,
 }
 
